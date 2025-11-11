@@ -6,9 +6,9 @@ import '../services/api_service.dart';
 class DeviceControlPage extends StatefulWidget {
   final String deviceCode;
   final String deviceName;
-  final int? deviceId; // Optional, for API calls
+  final int? deviceId; // Optional, used for backend logging & permissions
 
-  DeviceControlPage({
+  const DeviceControlPage({
     super.key,
     required this.deviceCode,
     required this.deviceName,
@@ -47,44 +47,52 @@ class _DeviceControlPageState extends State<DeviceControlPage>
     super.dispose();
   }
 
+  /// Maps UI commands to Arduino commands: UP → OPEN, DOWN → CLOSE, STOP → STOP
   Future<void> _sendCommand(String command) async {
     if (_isSending) return;
 
     setState(() => _isSending = true);
 
-    try {
-      // Send command via MQTT
-      await _mqttService.send(widget.deviceCode, command);
+    // Map UI commands to Arduino commands
+    String actualCommand;
+    if (command == "UP") {
+      actualCommand = "OPEN";
+    } else if (command == "DOWN") {
+      actualCommand = "CLOSE";
+    } else {
+      actualCommand = "STOP";
+    }
 
-      // Acknowledge with backend (optional, but required by spec)
+    try {
+      // Send via MQTT
+      await _mqttService.send(widget.deviceCode, actualCommand);
+
+      // Log in backend (optional)
       if (widget.deviceId != null) {
         try {
           await _apiService.controlDevice(
             deviceId: widget.deviceId!,
-            command: command,
+            command: actualCommand,
           );
         } catch (e) {
-          // Continue even if backend acknowledgment fails
-          print('Backend acknowledgment failed: $e');
+          print("Backend acknowledgment failed → $e");
         }
       }
 
       Fluttertoast.showToast(
-        msg: 'Command sent: $command',
+        msg: "Command: $actualCommand Sent ✅",
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.BOTTOM,
         backgroundColor: const Color(0xFFFFA500),
         textColor: Colors.white,
-        fontSize: 16.0,
       );
     } catch (e) {
       Fluttertoast.showToast(
-        msg: 'Failed to send command: ${e.toString()}',
+        msg: "Failed: $e",
         toastLength: Toast.LENGTH_LONG,
         gravity: ToastGravity.BOTTOM,
         backgroundColor: Colors.red,
         textColor: Colors.white,
-        fontSize: 16.0,
       );
     } finally {
       setState(() => _isSending = false);
@@ -96,15 +104,8 @@ class _DeviceControlPageState extends State<DeviceControlPage>
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text(
-          widget.deviceName,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
+        title: Text(widget.deviceName),
         backgroundColor: const Color(0xFFFFA500),
-        elevation: 0,
       ),
       body: FadeTransition(
         opacity: _fadeAnimation,
@@ -114,68 +115,41 @@ class _DeviceControlPageState extends State<DeviceControlPage>
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 20),
+
               // Device Info Card
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFA500).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: const Color(0xFFFFA500).withOpacity(0.3),
-                  ),
+                  border: Border.all(color: const Color(0xFFFFA500).withOpacity(0.3)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.devices,
-                      color: Color(0xFFFFA500),
-                      size: 32,
-                    ),
+                    const Icon(Icons.devices, color: Color(0xFFFFA500), size: 32),
                     const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.deviceName,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Code: ${widget.deviceCode}',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(widget.deviceName,
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text("Code: ${widget.deviceCode}",
+                            style: TextStyle(color: Colors.grey[600])),
+                      ],
                     ),
                   ],
                 ),
               ),
+
               const SizedBox(height: 40),
-              // Control Buttons
-              _buildCommandButton(
-                'UP',
-                const Color(0xFFFFA500),
-                Icons.arrow_upward,
-              ),
+
+              // Buttons
+              _buildCommandButton("UP", const Color(0xFFFFA500), Icons.arrow_upward),
               const SizedBox(height: 16),
-              _buildCommandButton(
-                'STOP',
-                Colors.grey,
-                Icons.stop,
-              ),
+              _buildCommandButton("STOP", Colors.grey, Icons.stop),
               const SizedBox(height: 16),
-              _buildCommandButton(
-                'DOWN',
-                Colors.red,
-                Icons.arrow_downward,
-              ),
+              _buildCommandButton("DOWN", Colors.red, Icons.arrow_downward),
             ],
           ),
         ),
@@ -183,74 +157,46 @@ class _DeviceControlPageState extends State<DeviceControlPage>
     );
   }
 
-  Widget _buildCommandButton(
-    String command,
-    Color color,
-    IconData icon,
-  ) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 800),
-      curve: Curves.easeOut,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.scale(
-            scale: 0.8 + (0.2 * value),
-            child: child,
-          ),
-        );
-      },
-      child: Material(
-        elevation: 4,
+  Widget _buildCommandButton(String command, Color color, IconData icon) {
+    return Material(
+      elevation: 4,
+      borderRadius: BorderRadius.circular(16),
+      color: color,
+      child: InkWell(
+        onTap: _isSending ? null : () => _sendCommand(command),
         borderRadius: BorderRadius.circular(16),
-        color: color,
-        child: InkWell(
-          onTap: _isSending ? null : () => _sendCommand(command),
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 32),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              gradient: LinearGradient(
-                colors: [
-                  color,
-                  color.withOpacity(0.8),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              colors: [color, color.withOpacity(0.8)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (_isSending)
-                  const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                else
-                  Icon(icon, color: Colors.white, size: 24),
-                const SizedBox(width: 12),
-                Text(
-                  command,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: 1.2,
-                  ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _isSending
+                  ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
-              ],
-            ),
+              )
+                  : Icon(icon, color: Colors.white, size: 24),
+              const SizedBox(width: 12),
+              Text(
+                command,
+                style: const TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 }
-

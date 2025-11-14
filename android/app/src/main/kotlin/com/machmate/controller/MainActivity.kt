@@ -1,4 +1,4 @@
-package com.example.machmate_controller
+package com.machmate.controller
 
 import io.flutter.embedding.android.FlutterActivity
 

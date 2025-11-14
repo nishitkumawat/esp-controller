@@ -26,6 +26,7 @@ class _DeviceControlPageState extends State<DeviceControlPage>
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   bool _isSending = false;
+  String? _activeCommand;
 
   @override
   void initState() {
@@ -51,7 +52,10 @@ class _DeviceControlPageState extends State<DeviceControlPage>
   Future<void> _sendCommand(String command) async {
     if (_isSending) return;
 
-    setState(() => _isSending = true);
+    setState(() {
+      _isSending = true;
+      _activeCommand = command;
+    });
 
     // Map UI commands to Arduino commands
     String actualCommand;
@@ -95,7 +99,10 @@ class _DeviceControlPageState extends State<DeviceControlPage>
         textColor: Colors.white,
       );
     } finally {
-      setState(() => _isSending = false);
+      setState(() {
+        _isSending = false;
+        _activeCommand = null;
+      });
     }
   }
 
@@ -178,7 +185,7 @@ class _DeviceControlPageState extends State<DeviceControlPage>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _isSending
+              _isSending && _activeCommand == command
                   ? const SizedBox(
                 width: 24,
                 height: 24,

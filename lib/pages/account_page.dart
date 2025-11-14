@@ -20,6 +20,7 @@ class _AccountPageState extends State<AccountPage> {
   bool _isLoading = true;
   bool _isAdmin = false;
   int? _userId;
+  String? _phoneNumber;
 
   @override
   void initState() {
@@ -31,6 +32,7 @@ class _AccountPageState extends State<AccountPage> {
     setState(() => _isLoading = true);
     try {
       final userId = await _authService.getUserId();
+      final phone = await _authService.getLoggedInPhone();
       if (userId == null) {
         setState(() {
           _userId = null;
@@ -104,6 +106,7 @@ class _AccountPageState extends State<AccountPage> {
         _isAdmin = isAdmin;
         _pendingRequests = pendingRequests;
         _deviceMembers = memberMap;
+        _phoneNumber = phone;
         _isLoading = false;
       });
     } catch (e) {
@@ -492,13 +495,15 @@ class _AccountPageState extends State<AccountPage> {
                                   ),
                                 ),
                                 const SizedBox(height: 4),
-                                Text(
-                                  'User ID: ${_userId ?? "N/A"}',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey[600],
+                                if (_phoneNumber != null &&
+                                    _phoneNumber!.isNotEmpty)
+                                  Text(
+                                    'Phone: $_phoneNumber',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey[600],
+                                    ),
                                   ),
-                                ),
                               ],
                             ),
                           ),
@@ -626,8 +631,9 @@ class _AccountPageState extends State<AccountPage> {
                       final deviceMap = _asMap(device);
                       final deviceName =
                           deviceMap['name']?.toString() ?? 'Unnamed Device';
-                      final deviceIdentifier =
-                          deviceMap['device_id'] ?? deviceMap['id'] ?? 'N/A';
+                      final role =
+                          deviceMap['role']?.toString().toLowerCase() ?? '';
+                      final bool canRename = role == 'admin';
                       final members = _deviceMembers[deviceId] ?? <dynamic>[];
 
                       return Card(
@@ -648,39 +654,38 @@ class _AccountPageState extends State<AccountPage> {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(deviceName),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Device ID: $deviceIdentifier',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey[600],
-                                          ),
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Flexible(
+                                              child: Text(
+                                                deviceName,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            if (canRename) ...[
+                                              const SizedBox(width: 8),
+                                              IconButton(
+                                                icon: const Icon(
+                                                  Icons.edit,
+                                                  size: 18,
+                                                  color: Color(0xFFFFA500),
+                                                ),
+                                                onPressed: () {
+                                                  if (deviceId != null) {
+                                                    _renameDevice(deviceId, deviceName);
+                                                  }
+                                                },
+                                                tooltip: 'Edit device name',
+                                              ),
+                                            ],
+                                          ],
                                         ),
                                       ],
                                     ),
-                                  ),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: [
-                                      ElevatedButton(
-                                        onPressed: () => _changeAdmin(deviceId),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFFFFA500),
-                                          foregroundColor: Colors.white,
-                                        ),
-                                        child: const Text('Change Admin'),
-                                      ),
-                                      OutlinedButton(
-                                        onPressed: () => _removeAccess(deviceId),
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: Colors.red,
-                                          side: const BorderSide(color: Colors.red),
-                                        ),
-                                        child: const Text('Remove Access'),
-                                      ),
-                                    ],
                                   ),
                                 ],
                               ),
@@ -813,16 +818,7 @@ class _AccountPageState extends State<AccountPage> {
                     ],
                   ],
                 ),
-                if (userId != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'ID: $userId',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
+                // Intentionally hide raw numeric user IDs from the UI
                 if (phone != 'N/A' && phone.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(
@@ -881,7 +877,7 @@ class _AccountPageState extends State<AccountPage> {
           'Remove Access',
           style: TextStyle(color: Color(0xFFFFA500)),
         ),
-        content: Text('Are you sure you want to remove access for User ID $targetUserId?'),
+        content: const Text('Are you sure you want to remove access for this user?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -917,6 +913,84 @@ class _AccountPageState extends State<AccountPage> {
       } catch (e) {
         Fluttertoast.showToast(
           msg: 'Failed to remove access: ${e.toString()}',
+          toastLength: Toast.LENGTH_SHORT,
+          gravity: ToastGravity.BOTTOM,
+          backgroundColor: Colors.red,
+          textColor: Colors.white,
+        );
+      }
+    }
+  }
+
+  Future<void> _renameDevice(int deviceId, String currentName) async {
+    final controller = TextEditingController(text: currentName);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text(
+          'Edit Device Name',
+          style: TextStyle(color: Color(0xFFFFA500)),
+        ),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'Device Name',
+            hintText: 'Enter new device name',
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFFA500),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final newName = controller.text.trim();
+      if (newName.isEmpty || newName == currentName) {
+        return;
+      }
+
+      try {
+        final response = await _apiService.renameDevice(
+          deviceId: deviceId,
+          newName: newName,
+        );
+
+        final success = response['status'] == true ||
+            response['status']?.toString().toLowerCase() == 'true';
+        final message = response['message']?.toString() ??
+            (success ? 'Device renamed successfully' : 'Failed to rename device');
+
+        Fluttertoast.showToast(
+          msg: message,
+          toastLength: Toast.LENGTH_SHORT,
+          gravity: ToastGravity.BOTTOM,
+          backgroundColor: success ? Colors.green : Colors.red,
+          textColor: Colors.white,
+        );
+
+        if (success) {
+          _loadData();
+        }
+      } catch (e) {
+        Fluttertoast.showToast(
+          msg: 'Failed to rename device: ${e.toString()}',
           toastLength: Toast.LENGTH_SHORT,
           gravity: ToastGravity.BOTTOM,
           backgroundColor: Colors.red,

@@ -1,8 +1,5 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:http/http.dart' as http;
 
 import '../services/auth_service.dart';
 import 'forgot_password_page.dart';
@@ -24,7 +21,6 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
 
   bool _isLoading = false;
   bool _obscurePassword = true;
-  bool _isTestingBackend = false;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -63,49 +59,6 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     phoneController.dispose();
     passwordController.dispose();
     super.dispose();
-  }
-
-  Future<void> _testBackend() async {
-    setState(() => _isTestingBackend = true);
-    try {
-      final response = await http
-          .get(Uri.parse('https://api.machmate.in/iot/tester/'))
-          .timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final message =
-            data['message']?.toString() ?? 'IoT Backend is running';
-        Fluttertoast.showToast(
-          msg: message,
-          toastLength: Toast.LENGTH_SHORT,
-          gravity: ToastGravity.BOTTOM,
-          backgroundColor: Colors.green,
-          textColor: Colors.white,
-        );
-      } else {
-        Fluttertoast.showToast(
-          msg:
-              'Tester failed (${response.statusCode}): ${response.reasonPhrase ?? 'Unknown error'}',
-          toastLength: Toast.LENGTH_LONG,
-          gravity: ToastGravity.BOTTOM,
-          backgroundColor: Colors.red,
-          textColor: Colors.white,
-        );
-      }
-    } catch (e) {
-      Fluttertoast.showToast(
-        msg: 'Tester failed: ${e.toString()}',
-        toastLength: Toast.LENGTH_LONG,
-        gravity: ToastGravity.BOTTOM,
-        backgroundColor: Colors.red,
-        textColor: Colors.white,
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isTestingBackend = false);
-      }
-    }
   }
 
   Future<void> _handleLogin() async {
@@ -209,35 +162,6 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  ElevatedButton(
-                    onPressed: _isTestingBackend ? null : _testBackend,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFFA500),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: _isTestingBackend
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : const Text(
-                            'Test IoT Backend',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                  ),
-                  const SizedBox(height: 24),
                   const SizedBox(height: 40),
                   TweenAnimationBuilder<double>(
                     tween: Tween(begin: 0.0, end: 1.0),

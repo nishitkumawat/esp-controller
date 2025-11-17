@@ -5,7 +5,7 @@ import '../services/api_service.dart';
 import '../services/auth_service.dart';
 
 class AddDevicePage extends StatefulWidget {
-  AddDevicePage({super.key});
+  const AddDevicePage({super.key});
 
   @override
   State<AddDevicePage> createState() => _AddDevicePageState();

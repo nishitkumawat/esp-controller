@@ -5,7 +5,7 @@ import 'add_device_page.dart';
 import 'account_page.dart';
 
 class HomePage extends StatefulWidget {
-  HomePage({super.key});
+  const HomePage({super.key});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -44,7 +44,7 @@ class _HomePageState extends State<HomePage> {
           });
           if (index == 0) {
             final state = _devicesPageKey.currentState;
-            if (state != null && state is State) {
+            if (state != null) {
               try {
                 (state as dynamic).refresh();
               } catch (_) {}

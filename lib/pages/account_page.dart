@@ -5,7 +5,7 @@ import '../services/auth_service.dart';
 import 'login_page.dart';
 
 class AccountPage extends StatefulWidget {
-  AccountPage({super.key});
+  const AccountPage({super.key});
 
   @override
   State<AccountPage> createState() => _AccountPageState();
@@ -675,10 +675,8 @@ class _AccountPageState extends State<AccountPage> {
                                                   color: Color(0xFFFFA500),
                                                 ),
                                                 onPressed: () {
-                                                  if (deviceId != null) {
-                                                    _renameDevice(deviceId, deviceName);
-                                                  }
-                                                },
+                                                  _renameDevice(deviceId, deviceName);
+                                                                                                },
                                                 tooltip: 'Edit device name',
                                               ),
                                             ],

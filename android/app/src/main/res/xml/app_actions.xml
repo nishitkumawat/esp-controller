@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<actions xmlns:android="http://schemas.android.com/apk/res/android">
+    <action intentName="OPEN_SHUTTER_ACTION">
+        <fulfillment urlTemplate="machmate://action?cmd=open&amp;device={deviceCode}">
+            <parameter-mapping
+                intentParameter="deviceCode"
+                urlParameter="device" />
+        </fulfillment>
+    </action>
+</actions>

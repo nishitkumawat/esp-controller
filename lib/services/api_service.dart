@@ -203,4 +203,20 @@ class ApiService {
         'user_id': userId,
         'admin_user_id': adminUserId,
       });
+
+  Future<Map<String, dynamic>> deleteDevice({
+    required int deviceId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final int? userId = prefs.getInt("user_id");
+
+    if (userId == null) {
+      throw Exception("User not logged in");
+    }
+
+    return _post('/delete_device/', {
+      'device_id': deviceId,
+      'user_id': userId,
+    });
+  }
 }

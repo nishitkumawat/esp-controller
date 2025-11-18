@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/device_auto_detect.dart';
 
 class AddDevicePage extends StatefulWidget {
   AddDevicePage({super.key});
@@ -17,6 +18,28 @@ class _AddDevicePageState extends State<AddDevicePage> {
   final AuthService _authService = AuthService();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+
+  late DeviceAutoDetect autoDetect;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // start auto-detect listener
+    autoDetect = DeviceAutoDetect();
+    autoDetect.startListener((deviceData) async {
+      try {
+        final deviceId = deviceData["device_id"]?.toString() ?? "";
+        if (deviceId.isEmpty) return;
+        print("Auto-detected device id: $deviceId");
+        // auto-fill the input and trigger existing add flow
+        _deviceCodeController.text = deviceId;
+        await _addDevice();
+      } catch (e) {
+        print("Auto-detect callback error: $e");
+      }
+    });
+  }
 
   @override
   void dispose() {

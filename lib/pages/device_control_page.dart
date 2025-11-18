@@ -113,6 +113,13 @@ class _DeviceControlPageState extends State<DeviceControlPage>
       appBar: AppBar(
         title: Text(widget.deviceName),
         backgroundColor: const Color(0xFFFFA500),
+        actions: [
+          if (widget.deviceId != null)
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: _confirmAndDeleteDevice,
+            ),
+        ],
       ),
       body: FadeTransition(
         opacity: _fadeAnimation,
@@ -162,6 +169,72 @@ class _DeviceControlPageState extends State<DeviceControlPage>
         ),
       ),
     );
+  }
+
+  Future<void> _confirmAndDeleteDevice() async {
+    if (widget.deviceId == null) {
+      Fluttertoast.showToast(
+        msg: "Cannot remove device: missing device id",
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+      );
+      return;
+    }
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Remove Device'),
+          content: const Text('Are you sure you want to remove this device from your account?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Remove'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final result = await _apiService.deleteDevice(deviceId: widget.deviceId!);
+      final status = result['status']?.toString();
+      if (status == 'success') {
+        Fluttertoast.showToast(
+          msg: 'Device removed from your account successfully',
+          toastLength: Toast.LENGTH_SHORT,
+          gravity: ToastGravity.BOTTOM,
+          backgroundColor: Colors.green,
+          textColor: Colors.white,
+        );
+        Navigator.of(context).pop();
+      } else {
+        Fluttertoast.showToast(
+          msg: result['message']?.toString() ?? 'Failed to remove device',
+          toastLength: Toast.LENGTH_LONG,
+          gravity: ToastGravity.BOTTOM,
+          backgroundColor: Colors.red,
+          textColor: Colors.white,
+        );
+      }
+    } catch (e) {
+      Fluttertoast.showToast(
+        msg: 'Failed to remove device: $e',
+        toastLength: Toast.LENGTH_LONG,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+      );
+    }
   }
 
   Widget _buildCommandButton(String command, Color color, IconData icon) {

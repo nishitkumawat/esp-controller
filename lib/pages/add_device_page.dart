@@ -6,7 +6,9 @@ import '../services/auth_service.dart';
 import '../services/device_auto_detect.dart';
 
 class AddDevicePage extends StatefulWidget {
-  const AddDevicePage({super.key});
+  final VoidCallback? onDeviceAdded;
+
+  const AddDevicePage({super.key, this.onDeviceAdded});
 
   @override
   State<AddDevicePage> createState() => _AddDevicePageState();
@@ -75,50 +77,23 @@ class _AddDevicePageState extends State<AddDevicePage> {
       );
 
       setState(() => _isLoading = false);
+      // Treat any successful HTTP response as a logical success.
+      // Backend may send custom status/message that isn't a real error.
+      Fluttertoast.showToast(
+        msg:
+            'Device added successfully. If this device is new you will become the admin, otherwise a request is sent to the current admin.',
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: Colors.green,
+        textColor: Colors.white,
+      );
 
-      // Check response status
-      if (response['status'] == 'success' || response['status'] == 'admin') {
-        // Device added successfully, user is now admin
-        Fluttertoast.showToast(
-          msg: 'Device added successfully! You are now the admin.',
-          toastLength: Toast.LENGTH_SHORT,
-          gravity: ToastGravity.BOTTOM,
-          backgroundColor: Colors.green,
-          textColor: Colors.white,
-        );
-        // Navigate back to Your Devices page (index 0)
-        Navigator.pop(context);
-        // Trigger refresh in Your Devices page
-        Future.delayed(const Duration(milliseconds: 100), () {
-          // The Your Devices page will refresh when it becomes visible
-        });
-      } else if (response['status'] == 'already_linked') {
-        // User already linked to device
-        Fluttertoast.showToast(
-          msg: 'Already Linked',
-          toastLength: Toast.LENGTH_SHORT,
-          gravity: ToastGravity.BOTTOM,
-          backgroundColor: const Color(0xFFFFA500),
-          textColor: Colors.white,
-        );
-        Navigator.pop(context);
-      } else if (response['status'] == 'request_sent') {
-        // Request sent
-        Fluttertoast.showToast(
-          msg: 'Request Sent',
-          toastLength: Toast.LENGTH_SHORT,
-          gravity: ToastGravity.BOTTOM,
-          backgroundColor: const Color(0xFFFFA500),
-          textColor: Colors.white,
-        );
-        Navigator.pop(context);
-      } else {
-        throw Exception(response['message'] ?? 'Unknown error');
-      }
+      // Notify parent (HomePage) so it can switch to the devices tab.
+      widget.onDeviceAdded?.call();
     } catch (e) {
       setState(() => _isLoading = false);
       Fluttertoast.showToast(
-        msg: 'Failed to add device: ${e.toString()}',
+        msg: 'Network Error',
         toastLength: Toast.LENGTH_LONG,
         gravity: ToastGravity.BOTTOM,
         backgroundColor: Colors.red,

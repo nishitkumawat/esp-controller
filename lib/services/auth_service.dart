@@ -6,6 +6,7 @@ class AuthService {
   static const _isLoggedInKey = 'isLoggedIn';
   static const _loggedPhoneKey = 'loggedPhone';
   static const _userIdKey = 'user_id';
+  static const _userNameKey = 'user_name';
 
   final ApiService _api = ApiService();
 
@@ -30,9 +31,15 @@ class AuthService {
   }) async {
     final response = await _api.login(phone: phone, password: password);
     if (_isSuccess(response['status'])) {
+      print("Name from backend: ${response['name']}");
       final userId = _parseInt(response['user_id']);
+      final String? name =
+          response['name']?.toString() ??
+          response['user_name']?.toString() ??
+          response['username']?.toString() ??
+          response['full_name']?.toString();
       if (userId != null) {
-        await _saveSession(userId: userId, phone: phone);
+        await _saveSession(userId: userId, phone: phone, name: name);
       }
     }
     return response;
@@ -68,6 +75,11 @@ class AuthService {
     return prefs.getString(_loggedPhoneKey);
   }
 
+  Future<String?> getLoggedInName() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_userNameKey);
+  }
+
   Future<int?> getUserId() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getInt(_userIdKey);
@@ -86,11 +98,15 @@ class AuthService {
   Future<void> _saveSession({
     required int userId,
     required String phone,
+    String? name,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_isLoggedInKey, true);
     await prefs.setString(_loggedPhoneKey, phone);
     await prefs.setInt(_userIdKey, userId);
+    if (name != null && name.trim().isNotEmpty) {
+      await prefs.setString(_userNameKey, name.trim());
+    }
   }
 
   Future<void> _clearSession() async {
@@ -98,6 +114,7 @@ class AuthService {
     await prefs.setBool(_isLoggedInKey, false);
     await prefs.remove(_loggedPhoneKey);
     await prefs.remove(_userIdKey);
+     await prefs.remove(_userNameKey);
   }
 
   bool _isSuccess(dynamic status) {

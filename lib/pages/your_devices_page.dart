@@ -55,7 +55,7 @@ class _YourDevicesPageState extends State<YourDevicesPage> with AutomaticKeepAli
     } catch (e) {
       setState(() => _isLoading = false);
       Fluttertoast.showToast(
-        msg: 'Failed to load devices: ${e.toString()}',
+        msg: 'Network Error',
         toastLength: Toast.LENGTH_LONG,
         gravity: ToastGravity.BOTTOM,
         backgroundColor: Colors.red,
@@ -145,17 +145,21 @@ class _YourDevicesPageState extends State<YourDevicesPage> with AutomaticKeepAli
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: InkWell(
-                          onTap: () {
-                            Navigator.push(
+                          onTap: () async {
+                            final deleted = await Navigator.push<bool>(
                               context,
                               MaterialPageRoute(
                                 builder: (_) => DeviceControlPage(
                                   deviceCode: deviceCode,
                                   deviceName: deviceName,
                                   deviceId: deviceId,
+                                  isAdmin: isAdmin,
                                 ),
                               ),
                             );
+                            if (deleted == true) {
+                              await _loadDevices();
+                            }
                           },
                           borderRadius: BorderRadius.circular(16),
                           child: Padding(

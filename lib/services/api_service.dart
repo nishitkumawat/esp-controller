@@ -97,11 +97,25 @@ class ApiService {
   Future<Map<String, dynamic>> addDevice({
     required int userId,
     required String deviceCode,
-  }) async =>
-      _post('/add_device/', {
-        'user_id': userId,
-        'device_code': deviceCode,
-      });
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/add_device/'),
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': userId,
+          'device_code': deviceCode,
+        }),
+      );
+
+      // For this endpoint we always return the body, even if status is not 200,
+      // so that the UI can interpret custom statuses from the backend.
+      return _safeDecode(response.body);
+    } catch (e) {
+      // Let the UI handle this as a real network error via its catch block.
+      throw Exception('Network error: $e');
+    }
+  }
 
   Future<Map<String, dynamic>> getMyDevices({required int userId}) async =>
       _get('/my_devices/?user_id=$userId');

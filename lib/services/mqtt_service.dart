@@ -72,7 +72,7 @@ class MqttService {
       }
 
       // Small delay so Arduino executes STOP before next command
-      await Future.delayed(const Duration(milliseconds: 180));
+      await Future.delayed(const Duration(milliseconds: 80));
 
       // ✅ Then send requested command (OPEN / CLOSE / STOP)
           {

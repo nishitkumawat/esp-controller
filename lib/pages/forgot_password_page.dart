@@ -90,7 +90,10 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage>
     } catch (e) {
       setState(() => _isLoading = false);
       Fluttertoast.showToast(
-        msg: e.toString().replaceAll('Exception: ', ''),
+        msg: e
+            .toString()
+            .replaceAll('Exception: ', '')
+            .replaceAll('Network error: ', ''),
         toastLength: Toast.LENGTH_LONG,
         gravity: ToastGravity.BOTTOM,
         backgroundColor: Colors.red,

@@ -108,7 +108,10 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     } catch (e) {
       setState(() => _isLoading = false);
       Fluttertoast.showToast(
-        msg: e.toString().replaceAll('Exception: ', ''),
+        msg: e
+            .toString()
+            .replaceAll('Exception: ', '')
+            .replaceAll('Network error: ', ''),
         toastLength: Toast.LENGTH_LONG,
         gravity: ToastGravity.BOTTOM,
         backgroundColor: Colors.red,
@@ -228,7 +231,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                             keyboardType: TextInputType.phone,
                             decoration: InputDecoration(
                               labelText: 'Phone Number',
-                              hintText: '+1234567890',
+                              hintText: '9876543210',
                               prefixIcon: const Icon(
                                 Icons.phone_outlined,
                                 color: Color(0xFFFFA500),

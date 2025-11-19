@@ -33,6 +33,24 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  void _onDeviceAdded() {
+    setState(() {
+      _currentIndex = 0;
+    });
+    _pageController.animateToPage(
+      0,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+    // Trigger refresh on YourDevicesPage when we land back on index 0.
+    final state = _devicesPageKey.currentState;
+    if (state != null) {
+      try {
+        (state as dynamic).refresh();
+      } catch (_) {}
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -53,7 +71,7 @@ class _HomePageState extends State<HomePage> {
         },
         children: [
           YourDevicesPage(key: _devicesPageKey),
-          AddDevicePage(),
+          AddDevicePage(onDeviceAdded: _onDeviceAdded),
           AccountPage(),
         ],
       ),

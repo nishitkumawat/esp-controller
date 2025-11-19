@@ -21,6 +21,7 @@ class _AccountPageState extends State<AccountPage> {
   bool _isAdmin = false;
   int? _userId;
   String? _phoneNumber;
+  String? _userName;
 
   @override
   void initState() {
@@ -33,6 +34,7 @@ class _AccountPageState extends State<AccountPage> {
     try {
       final userId = await _authService.getUserId();
       final phone = await _authService.getLoggedInPhone();
+      final name = await _authService.getLoggedInName();
       if (userId == null) {
         setState(() {
           _userId = null;
@@ -41,6 +43,7 @@ class _AccountPageState extends State<AccountPage> {
           _pendingRequests = [];
           _deviceMembers = {};
           _isLoading = false;
+          _userName = name;
         });
         return;
       }
@@ -107,12 +110,13 @@ class _AccountPageState extends State<AccountPage> {
         _pendingRequests = pendingRequests;
         _deviceMembers = memberMap;
         _phoneNumber = phone;
+        _userName = name;
         _isLoading = false;
       });
     } catch (e) {
       setState(() => _isLoading = false);
       Fluttertoast.showToast(
-        msg: 'Failed to load data: ${e.toString()}',
+        msg: 'Network Error',
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.BOTTOM,
         backgroundColor: Colors.red,
@@ -139,7 +143,7 @@ class _AccountPageState extends State<AccountPage> {
       _loadData(); // Refresh
     } catch (e) {
       Fluttertoast.showToast(
-        msg: 'Failed to approve: ${e.toString()}',
+        msg: 'Network Error',
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.BOTTOM,
         backgroundColor: Colors.red,
@@ -165,7 +169,7 @@ class _AccountPageState extends State<AccountPage> {
       _loadData();
     } catch (e) {
       Fluttertoast.showToast(
-        msg: 'Failed to reject: ${e.toString()}',
+        msg: 'Network Error',
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.BOTTOM,
         backgroundColor: Colors.red,
@@ -238,7 +242,7 @@ class _AccountPageState extends State<AccountPage> {
         _loadData(); // Refresh
       } catch (e) {
         Fluttertoast.showToast(
-          msg: 'Failed to change admin: ${e.toString()}',
+          msg: 'Network Error',
           toastLength: Toast.LENGTH_SHORT,
           gravity: ToastGravity.BOTTOM,
           backgroundColor: Colors.red,
@@ -249,6 +253,37 @@ class _AccountPageState extends State<AccountPage> {
   }
 
   Future<void> _makeAdmin(int deviceId, int newAdminUserId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text(
+          'Make Admin',
+          style: TextStyle(color: Color(0xFFFFA500)),
+        ),
+        content: const Text(
+            'Are you sure you want to make this user an admin? They will get full control of this device.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFFA500),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Make Admin'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
     try {
       await _apiService.changeAdmin(
         deviceId: deviceId,
@@ -265,7 +300,7 @@ class _AccountPageState extends State<AccountPage> {
       _loadData();
     } catch (e) {
       Fluttertoast.showToast(
-        msg: 'Failed to make admin: ${e.toString()}',
+        msg: 'Network Error',
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.BOTTOM,
         backgroundColor: Colors.red,
@@ -377,7 +412,7 @@ class _AccountPageState extends State<AccountPage> {
       _loadData();
     } catch (e) {
       Fluttertoast.showToast(
-        msg: 'Failed to remove access: ${e.toString()}',
+        msg: 'Network Error',
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.BOTTOM,
         backgroundColor: Colors.red,
@@ -487,9 +522,13 @@ class _AccountPageState extends State<AccountPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
-                                  'User Account',
-                                  style: TextStyle(
+                                Text(
+                                  _userName != null && _userName!.isNotEmpty
+                                      ? _userName!
+                                      : (_phoneNumber != null && _phoneNumber!.isNotEmpty
+                                          ? _phoneNumber!
+                                          : 'User Account'),
+                                  style: const TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -631,6 +670,7 @@ class _AccountPageState extends State<AccountPage> {
                       final deviceMap = _asMap(device);
                       final deviceName =
                           deviceMap['name']?.toString() ?? 'Unnamed Device';
+                      final deviceCode = deviceMap['device_code']?.toString() ?? '';
                       final role =
                           deviceMap['role']?.toString().toLowerCase() ?? '';
                       final bool canRename = role == 'admin';
@@ -682,6 +722,17 @@ class _AccountPageState extends State<AccountPage> {
                                             ],
                                           ],
                                         ),
+                                        if (deviceCode.isNotEmpty) ...[
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Code: $deviceCode',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[600],
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
                                       ],
                                     ),
                                   ),

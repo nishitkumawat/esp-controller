@@ -7,12 +7,14 @@ class DeviceControlPage extends StatefulWidget {
   final String deviceCode;
   final String deviceName;
   final int? deviceId; // Optional, used for backend logging & permissions
+  final bool isAdmin; // Used for stronger delete warning
 
   const DeviceControlPage({
     super.key,
     required this.deviceCode,
     required this.deviceName,
     this.deviceId,
+    this.isAdmin = false,
   });
 
   @override
@@ -73,14 +75,12 @@ class _DeviceControlPageState extends State<DeviceControlPage>
 
       // Log in backend (optional)
       if (widget.deviceId != null) {
-        try {
-          await _apiService.controlDevice(
-            deviceId: widget.deviceId!,
-            command: actualCommand,
-          );
-        } catch (e) {
+        _apiService.controlDevice(
+          deviceId: widget.deviceId!,
+          command: actualCommand,
+        ).catchError((e) {
           print("Backend acknowledgment failed → $e");
-        }
+        });
       }
 
       Fluttertoast.showToast(
@@ -188,7 +188,11 @@ class _DeviceControlPageState extends State<DeviceControlPage>
       builder: (context) {
         return AlertDialog(
           title: const Text('Remove Device'),
-          content: const Text('Are you sure you want to remove this device from your account?'),
+          content: Text(
+            widget.isAdmin
+                ? 'You are the admin for this device. Deleting it will permanently remove it for you and all members. This action cannot be undone.'
+                : 'Are you sure you want to remove this device from your account?',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -206,29 +210,19 @@ class _DeviceControlPageState extends State<DeviceControlPage>
     if (confirmed != true) return;
 
     try {
-      final result = await _apiService.deleteDevice(deviceId: widget.deviceId!);
-      final status = result['status']?.toString();
-      if (status == 'success') {
-        Fluttertoast.showToast(
-          msg: 'Device removed from your account successfully',
-          toastLength: Toast.LENGTH_SHORT,
-          gravity: ToastGravity.BOTTOM,
-          backgroundColor: Colors.green,
-          textColor: Colors.white,
-        );
-        Navigator.of(context).pop();
-      } else {
-        Fluttertoast.showToast(
-          msg: result['message']?.toString() ?? 'Failed to remove device',
-          toastLength: Toast.LENGTH_LONG,
-          gravity: ToastGravity.BOTTOM,
-          backgroundColor: Colors.red,
-          textColor: Colors.white,
-        );
-      }
+      await _apiService.deleteDevice(deviceId: widget.deviceId!);
+      Fluttertoast.showToast(
+        msg: 'Device removed from your account successfully',
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: Colors.green,
+        textColor: Colors.white,
+      );
+      // Return true so the caller knows to refresh its list.
+      Navigator.of(context).pop(true);
     } catch (e) {
       Fluttertoast.showToast(
-        msg: 'Failed to remove device: $e',
+        msg: 'Network Error',
         toastLength: Toast.LENGTH_LONG,
         gravity: ToastGravity.BOTTOM,
         backgroundColor: Colors.red,

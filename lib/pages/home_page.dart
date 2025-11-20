@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/mqtt_service.dart';
 import 'your_devices_page.dart';
 import 'add_device_page.dart';
 import 'account_page.dart';
@@ -15,6 +16,12 @@ class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
   final PageController _pageController = PageController();
   final GlobalKey _devicesPageKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    MqttService().connect();
+  }
 
   @override
   void dispose() {

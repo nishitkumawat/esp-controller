@@ -2,6 +2,11 @@ import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 
 class MqttService {
+  static final MqttService instance = MqttService._internal();
+
+  MqttService._internal();
+
+  factory MqttService() => instance;
   final String broker = "broker.hivemq.com";
   final int port = 1883;
 
@@ -60,6 +65,12 @@ class MqttService {
       if (client == null ||
           client!.connectionStatus?.state != MqttConnectionState.connected) {
         await connect();
+      }
+
+      if (client == null ||
+          client!.connectionStatus?.state != MqttConnectionState.connected) {
+        print("[MQTT] Still not connected, aborting send ❌");
+        return;
       }
 
       final topic = "shutter/$deviceCode/cmd";

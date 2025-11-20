@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/mqtt_service.dart';
 import 'device_control_page.dart';
 
 class YourDevicesPage extends StatefulWidget {
@@ -14,6 +15,7 @@ class YourDevicesPage extends StatefulWidget {
 class _YourDevicesPageState extends State<YourDevicesPage> with AutomaticKeepAliveClientMixin {
   final ApiService _apiService = ApiService();
   final AuthService _authService = AuthService();
+  final MqttService _mqttService = MqttService();
   List<dynamic> _devices = [];
   bool _isLoading = true;
   int? _userId;
@@ -21,6 +23,7 @@ class _YourDevicesPageState extends State<YourDevicesPage> with AutomaticKeepAli
   @override
   void initState() {
     super.initState();
+    _mqttService.connect();
     _loadDevices();
   }
 

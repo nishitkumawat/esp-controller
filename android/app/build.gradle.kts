@@ -65,6 +65,17 @@ android {
         resources.excludes.add("META-INF/LICENSE*")
         resources.excludes.add("META-INF/NOTICE*")
     }
+
+    bundle {
+        abi {
+            enableSplit = false
+        }
+    }
+
+    aaptOptions {
+        noCompress("icudtl.dat")
+        noCompress("flutter_assets")
+    }
 }
 
 flutter {

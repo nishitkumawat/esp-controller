@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
@@ -22,13 +23,23 @@ class _ForgotPasswordOtpPageState extends State<ForgotPasswordOtpPage> {
   bool _isLoading = false;
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isResendLoading = false;
+  int _secondsRemaining = 0;
+  Timer? _resendTimer;
 
   @override
   void dispose() {
     _otpController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
+    _resendTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _startResendCountdown();
   }
 
   Future<void> _submit() async {
@@ -66,12 +77,14 @@ class _ForgotPasswordOtpPageState extends State<ForgotPasswordOtpPage> {
     setState(() => _isLoading = true);
 
     try {
+      print('[ForgotOtp] Submitting OTP for user_id=${widget.userId}, otp=$otp');
       final response = await _authService.verifyForgotOtp(
         userId: widget.userId,
         otp: otp,
         newPassword: newPassword,
       );
 
+      print('[ForgotOtp] Verify response: $response');
       setState(() => _isLoading = false);
 
       if (response['status'] == true) {
@@ -96,6 +109,7 @@ class _ForgotPasswordOtpPageState extends State<ForgotPasswordOtpPage> {
         );
       }
     } catch (e) {
+      print('[ForgotOtp] Verify error: $e');
       setState(() => _isLoading = false);
       Fluttertoast.showToast(
         msg: e
@@ -105,6 +119,60 @@ class _ForgotPasswordOtpPageState extends State<ForgotPasswordOtpPage> {
         backgroundColor: Colors.red,
         textColor: Colors.white,
       );
+    }
+  }
+
+  void _startResendCountdown() {
+    _resendTimer?.cancel();
+    setState(() {
+      _secondsRemaining = 30;
+    });
+
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_secondsRemaining <= 1) {
+        timer.cancel();
+        setState(() {
+          _secondsRemaining = 0;
+        });
+      } else {
+        setState(() {
+          _secondsRemaining--;
+        });
+      }
+    });
+  }
+
+  Future<void> _resendOtp() async {
+    if (_secondsRemaining > 0 || _isResendLoading) return;
+
+    print('[ForgotOtp] Resend OTP tapped. user_id=${widget.userId}');
+    setState(() => _isResendLoading = true);
+
+    try {
+      final response = await _authService.resendForgotOtp(userId: widget.userId);
+
+      print('[ForgotOtp] Resend response: $response');
+      Fluttertoast.showToast(
+        msg: response['message'] ?? 'OTP resent successfully',
+        backgroundColor: Colors.green,
+        textColor: Colors.white,
+      );
+
+      _startResendCountdown();
+    } catch (e) {
+      print('[ForgotOtp] Resend error: $e');
+      Fluttertoast.showToast(
+        msg: e
+            .toString()
+            .replaceAll('Exception: ', '')
+            .replaceAll('Network error: ', ''),
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isResendLoading = false);
+      }
     }
   }
 
@@ -249,6 +317,20 @@ class _ForgotPasswordOtpPageState extends State<ForgotPasswordOtpPage> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed:
+                    (_secondsRemaining > 0 || _isResendLoading) ? null : _resendOtp,
+                child: Text(
+                  _secondsRemaining > 0
+                      ? 'Resend OTP ($_secondsRemaining s)'
+                      : 'Resend OTP',
+                  style: const TextStyle(
+                    color: Color(0xFFFFA500),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ),
             ],
           ),

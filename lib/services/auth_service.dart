@@ -25,6 +25,12 @@ class AuthService {
     return _api.verifySignupOtp(userId: userId, otp: otp);
   }
 
+  Future<Map<String, dynamic>> resendSignupOtp({
+    required int userId,
+  }) {
+    return _api.resendSignupOtp(userId: userId);
+  }
+
   Future<Map<String, dynamic>> login({
     required String phone,
     required String password,
@@ -59,6 +65,12 @@ class AuthService {
       otp: otp,
       newPassword: newPassword,
     );
+  }
+
+  Future<Map<String, dynamic>> resendForgotOtp({
+    required int userId,
+  }) {
+    return _api.resendForgotOtp(userId: userId);
   }
 
   Future<Map<String, dynamic>> tester() {

@@ -69,6 +69,11 @@ class ApiService {
   }) async =>
       _post('/verify_signup_otp/', {'user_id': userId, 'otp': otp});
 
+  Future<Map<String, dynamic>> resendSignupOtp({
+    required int userId,
+  }) async =>
+      _post('/resend_signup_otp/', {'user_id': userId});
+
   Future<Map<String, dynamic>> login({
     required String phone,
     required String password,
@@ -79,6 +84,11 @@ class ApiService {
     required String phone,
   }) async =>
       _post('/forgot_password_send_otp/', {'phone': phone});
+
+  Future<Map<String, dynamic>> resendForgotOtp({
+    required int userId,
+  }) async =>
+      _post('/resend_forgot_otp/', {'user_id': userId});
 
   Future<Map<String, dynamic>> verifyForgotOtp({
     required int userId,

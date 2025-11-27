@@ -1,7 +1,12 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 import 'pages/login_page.dart';
 import 'pages/home_page.dart';
 import 'services/auth_service.dart';
+import 'services/api_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -88,7 +93,12 @@ class _AuthCheckWrapperState extends State<AuthCheckWrapper> {
   @override
   void initState() {
     super.initState();
-    _checkAuthStatus();
+    _initApp();
+  }
+
+  Future<void> _initApp() async {
+    await _checkPopup();
+    await _checkAuthStatus();
   }
 
   Future<void> _checkAuthStatus() async {
@@ -99,28 +109,115 @@ class _AuthCheckWrapperState extends State<AuthCheckWrapper> {
     });
   }
 
+  Future<void> _checkPopup() async {
+    try {
+      final resp = await http.get(
+        Uri.parse('${ApiService.baseUrl}/popup/'),
+      );
+
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+
+        if (data['show'] == true) {
+          final String message = (data['message'] ?? '').toString();
+          final String buttonName = (data['button_name'] ?? 'OK').toString();
+          final String buttonUrl = (data['button_url'] ?? '').toString();
+
+          if (!mounted) return;
+          await _showUpdatePopup(context, message, buttonName, buttonUrl);
+        }
+      }
+    } catch (_) {
+      // Silently ignore popup errors; app continues normally.
+    }
+  }
+
+  Future<void> _showUpdatePopup(
+    BuildContext context,
+    String message,
+    String btnName,
+    String btnUrl,
+  ) async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            'Important Update',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          content: Text(
+            message,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                SystemNavigator.pop();
+              },
+              child: Text(
+                'Close App',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                if (btnUrl.isEmpty) {
+                  Navigator.of(ctx).pop();
+                } else {
+                  final uri = Uri.parse(btnUrl);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(
+                      uri,
+                      mode: LaunchMode.externalApplication,
+                    );
+                  }
+                  Navigator.of(ctx).pop();
+                }
+              },
+              child: Text(
+                btnName,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
         backgroundColor: Colors.white,
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFFA500)),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'MachMate Controller',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFFFFA500).withOpacity(0.8),
+          child: Card(
+            elevation: 8,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Image.asset(
+                  'assets/splash_logo.png',
+                  width: 160,
+                  height: 160,
+                  fit: BoxFit.contain,
                 ),
               ),
-            ],
+            ),
           ),
         ),
       );

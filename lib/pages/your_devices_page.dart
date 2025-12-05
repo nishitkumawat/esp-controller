@@ -23,7 +23,6 @@ class _YourDevicesPageState extends State<YourDevicesPage> with AutomaticKeepAli
   @override
   void initState() {
     super.initState();
-    _mqttService.connect();
     _loadDevices();
   }
 

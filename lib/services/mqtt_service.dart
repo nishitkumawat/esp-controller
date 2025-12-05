@@ -3,104 +3,124 @@ import 'package:mqtt_client/mqtt_server_client.dart';
 
 class MqttService {
   static final MqttService instance = MqttService._internal();
-
   MqttService._internal();
-
   factory MqttService() => instance;
-  final String broker = "broker.hivemq.com";
-  final int port = 1883;
 
-  MqttServerClient? client;
+  // EMQX MQTT Broker with TLS
+  final String broker = "r11ab6d2.ala.asia-southeast1.emqxsl.com";
+  final int port = 8883;
+  final String mqttUser = "nk";
+  final String mqttPass = "9898434411";
+
+  MqttServerClient? _client;
   bool _isConnecting = false;
 
   Future<void> connect() async {
-    // Prevent reconnect loops
-    if (_isConnecting ||
-        (client != null &&
-            client!.connectionStatus?.state == MqttConnectionState.connected)) {
+    if (_isConnecting) return;
+    if (_client?.connectionStatus?.state == MqttConnectionState.connected) {
       return;
     }
 
     _isConnecting = true;
-
-    // ✅ Keep clientId short (< 23 chars) for HiveMQ
-    final String clientId =
-        "mm_${DateTime.now().millisecondsSinceEpoch % 999999}";
-
-    client = MqttServerClient(broker, clientId);
-    client!.port = port;
-    client!.keepAlivePeriod = 20;
-    client!.autoReconnect = true; // ✅ auto-reconnect enabled
-    client!.resubscribeOnAutoReconnect = true;
-    client!.logging(on: false);
-
-    client!.onDisconnected = () {
-      print("[MQTT] Disconnected");
-      _isConnecting = false;
-    };
-
-    // ✅ Correct Connect Message (VERY IMPORTANT!)
-    final connMessage = MqttConnectMessage()
-        .withClientIdentifier(clientId)
-        .withWillQos(MqttQos.atMostOnce)
-        .keepAliveFor(20)
-        .startClean();
-
-    client!.connectionMessage = connMessage;
+    print("[MQTT] Connecting via TCP/TLS (port $port)...");
 
     try {
-      await client!.connect();
-      print("[MQTT] Connected ✅");
+      final clientId = "app_${DateTime.now().millisecondsSinceEpoch % 999999}";
+
+      // Create client
+      _client = MqttServerClient.withPort(broker, clientId, port);
+      _client!.logging(on: false);
+      _client!.secure = true;
+      _client!.onBadCertificate = (dynamic certificate) => true;
+
+      _client!.onConnected = () {
+        print("[MQTT] Connected ✓");
+        _isConnecting = false;
+      };
+
+      _client!.onDisconnected = () {
+        print("[MQTT] Disconnected");
+        _isConnecting = false;
+      };
+
+      _client!.setProtocolV311();
+
+      final connMessage = MqttConnectMessage()
+          .authenticateAs(mqttUser, mqttPass)
+          .withClientIdentifier(clientId)
+          .keepAliveFor(60)
+          .withWillTopic('willtopic')
+          .withWillMessage('Will message')
+          .startClean()
+          .withWillQos(MqttQos.atLeastOnce);
+
+      _client!.connectionMessage = connMessage;
+
+      print("[MQTT] Attempting connection to $broker:$port");
+      await _client!.connect();
+      print("[MQTT] Connection successful!");
     } catch (e) {
-      print("[MQTT] Connection failed: $e ❌");
-      client!.disconnect();
-    } finally {
+      print("[MQTT] Connection ERROR: $e");
       _isConnecting = false;
+      _client?.disconnect();
+      _client = null;
+      rethrow;
     }
   }
 
   Future<void> send(String deviceCode, String command) async {
+    // Map UI commands to Arduino commands
+    String actualCommand;
+    if (command == "OPEN") {
+      actualCommand = "OPEN";
+    } else if (command == "CLOSE") {
+      actualCommand = "CLOSE";
+    } else {
+      actualCommand = "STOP";
+    }
+
+    print(
+      "[MQTT] Sending command: UI='$command' → ESP32='$actualCommand' to device: $deviceCode",
+    );
+
     try {
-      // Ensure MQTT connected
-      if (client == null ||
-          client!.connectionStatus?.state != MqttConnectionState.connected) {
+      // Ensure connection before sending
+      if (_client == null ||
+          _client!.connectionStatus?.state != MqttConnectionState.connected) {
+        print("[MQTT] Not connected, establishing connection...");
         await connect();
+        await Future.delayed(const Duration(milliseconds: 300));
       }
 
-      if (client == null ||
-          client!.connectionStatus?.state != MqttConnectionState.connected) {
-        print("[MQTT] Still not connected, aborting send ❌");
-        return;
+      if (_client == null ||
+          _client!.connectionStatus?.state != MqttConnectionState.connected) {
+        throw Exception("MQTT connection failed.");
       }
 
       final topic = "shutter/$deviceCode/cmd";
 
-      // ✅ Always send STOP first
-          {
-        final stopPayload = MqttClientPayloadBuilder()..addString("STOP");
-        client!.publishMessage(topic, MqttQos.atLeastOnce, stopPayload.payload!);
-        print('[MQTT] Sent "STOP" → $topic ✅');
-      }
+      // Send only the actual command (NO STOP prefix needed!)
+      final builder = MqttClientPayloadBuilder()..addString(actualCommand);
+      _client!.publishMessage(topic, MqttQos.atLeastOnce, builder.payload!);
 
-      // Small delay so Arduino executes STOP before next command
-      await Future.delayed(const Duration(milliseconds: 80));
-
-      // ✅ Then send requested command (OPEN / CLOSE / STOP)
-          {
-        final cmdPayload = MqttClientPayloadBuilder()..addString(command);
-        client!.publishMessage(topic, MqttQos.atLeastOnce, cmdPayload.payload!);
-        print('[MQTT] Sent "$command" → $topic ✅');
-      }
-
+      print("[MQTT] Sent: $actualCommand → $topic");
+      print("[MQTT] Command sent successfully!");
     } catch (e) {
-      print("[MQTT] Error sending: $e ❌");
+      print("[MQTT] Send failed: $e");
+      _client?.disconnect();
+      _client = null;
+      throw Exception("Failed to send command: ${e.toString()}");
     }
   }
 
   void disconnect() {
-    client?.disconnect();
-    client = null;
+    _client?.disconnect();
+    _client = null;
+    _isConnecting = false;
     print("[MQTT] Disconnected manually");
   }
-}
 
+  bool get isConnected =>
+      _client?.connectionStatus?.state == MqttConnectionState.connected;
+  bool get isConnecting => _isConnecting;
+}

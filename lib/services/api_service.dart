@@ -243,4 +243,16 @@ class ApiService {
       'user_id': userId,
     });
   }
+
+  /// Get all devices for the currently logged-in user
+  Future<Map<String, dynamic>> getUserDevices() async {
+    final prefs = await SharedPreferences.getInstance();
+    final int? userId = prefs.getInt("user_id");
+
+    if (userId == null) {
+      throw Exception("User not logged in");
+    }
+
+    return _get('/user_devices/?user_id=$userId');
+  }
 }

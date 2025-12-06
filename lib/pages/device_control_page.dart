@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import '../services/mqtt_service.dart';
+import '../services/mqtt_service_factory.dart';
 import '../services/api_service.dart';
 
 class DeviceControlPage extends StatefulWidget {
@@ -23,7 +23,7 @@ class DeviceControlPage extends StatefulWidget {
 
 class _DeviceControlPageState extends State<DeviceControlPage>
     with SingleTickerProviderStateMixin {
-  final MqttService _mqttService = MqttService();
+  late final dynamic _mqttService;
   final ApiService _apiService = ApiService();
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
@@ -33,6 +33,7 @@ class _DeviceControlPageState extends State<DeviceControlPage>
   @override
   void initState() {
     super.initState();
+    _mqttService = MqttServiceFactory.getMqttService(widget.deviceCode);
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),

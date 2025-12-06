@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:mqtt_client/mqtt_client.dart';
-import 'package:mqtt_client/mqtt_server_client.dart';
+import '../services/mqtt_service_factory.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import 'login_page.dart';
@@ -16,7 +15,7 @@ class ShutterControlPage extends StatefulWidget {
 class _ShutterControlPageState extends State<ShutterControlPage>
     with SingleTickerProviderStateMixin {
   final TextEditingController idController = TextEditingController();
-  final MqttService mqtt = MqttService();
+  late dynamic mqtt;
   final AuthService authService = AuthService();
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
@@ -26,6 +25,7 @@ class _ShutterControlPageState extends State<ShutterControlPage>
   void initState() {
     super.initState();
     loadSavedId();
+    // Initialize MQTT service with a default device code (will be updated when sending commands)
 
     // Fade-in animation for dashboard
     _controller = AnimationController(
@@ -59,6 +59,10 @@ class _ShutterControlPageState extends State<ShutterControlPage>
       );
       return;
     }
+    
+    // Initialize or update MQTT service with the current device ID
+    mqtt = MqttServiceFactory.getMqttService(id);
+    
     mqtt.send(id, cmd);
     saveId();
     Fluttertoast.showToast(

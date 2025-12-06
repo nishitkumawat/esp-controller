@@ -578,9 +578,13 @@ class _AccountPageState extends State<AccountPage> {
                         final int? requesterUserId = _toInt(requestMap['user_id']);
                         final deviceName =
                             requestMap['device_name']?.toString() ?? 'Unknown device';
-                        final requesterPhone =
-                            requestMap['phone']?.toString() ?? requestMap['phone_number']?.toString();
-                        final requesterName = requestMap['name']?.toString();
+                        final requesterPhone = 
+                            requestMap['phone']?.toString() ?? 
+                            requestMap['phone_number']?.toString() ??
+                            'Unknown number';
+                        final requesterName = requestMap['name']?.toString() ??
+                                           requestMap['username']?.toString() ??
+                                           'User';
                         return Card(
                           margin: const EdgeInsets.only(bottom: 8),
                           elevation: 1,

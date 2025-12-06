@@ -71,18 +71,41 @@ class _AddDevicePageState extends State<AddDevicePage> {
       }
 
       final deviceCode = _deviceCodeController.text.trim();
+      
+      // Check if this device is already in the user's devices
+      try {
+        final userDevices = await _apiService.getUserDevices();
+        if (userDevices['devices'] is List) {
+          final devices = List<dynamic>.from(userDevices['devices']);
+          if (devices.any((device) => 
+              device['device_code']?.toString().toLowerCase() == deviceCode.toLowerCase())) {
+            Fluttertoast.showToast(
+              msg: 'This device is already in your list',
+              toastLength: Toast.LENGTH_LONG,
+              gravity: ToastGravity.BOTTOM,
+              backgroundColor: Colors.orange,
+              textColor: Colors.white,
+            );
+            setState(() => _isLoading = false);
+            return;
+          }
+        }
+      } catch (e) {
+        print('Error checking existing devices: $e');
+        // Continue with adding the device if we can't check existing ones
+      }
+
       final response = await _apiService.addDevice(
         userId: userId,
         deviceCode: deviceCode,
       );
 
       setState(() => _isLoading = false);
-      // Treat any successful HTTP response as a logical success.
-      // Backend may send custom status/message that isn't a real error.
+      
       Fluttertoast.showToast(
-        msg:
+        msg: response['message'] ?? 
             'Device added successfully. If this device is new you will become the admin, otherwise a request is sent to the current admin.',
-        toastLength: Toast.LENGTH_SHORT,
+        toastLength: Toast.LENGTH_LONG,
         gravity: ToastGravity.BOTTOM,
         backgroundColor: Colors.green,
         textColor: Colors.white,
@@ -93,7 +116,7 @@ class _AddDevicePageState extends State<AddDevicePage> {
     } catch (e) {
       setState(() => _isLoading = false);
       Fluttertoast.showToast(
-        msg: 'Network Error',
+        msg: 'Error: ${e.toString().replaceAll('Exception: ', '')}',
         toastLength: Toast.LENGTH_LONG,
         gravity: ToastGravity.BOTTOM,
         backgroundColor: Colors.red,

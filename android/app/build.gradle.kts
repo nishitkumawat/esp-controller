@@ -5,20 +5,36 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
-     // For Firebase
 }
 
-// Load keystore properties
+/* ------------------ LOAD LOCAL PROPERTIES ------------------ */
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(FileInputStream(localPropertiesFile))
+}
+
+val flutterVersionCode =
+    localProperties.getProperty("flutter.versionCode")?.toInt() ?: 1
+
+val flutterVersionName =
+    localProperties.getProperty("flutter.versionName") ?: "1.0"
+
+/* ------------------ LOAD KEYSTORE PROPERTIES ------------------ */
+
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+/* ------------------ ANDROID CONFIG ------------------ */
+
 android {
     namespace = "com.machmate.controller"
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    compileSdk = 36
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -26,16 +42,22 @@ android {
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
+        jvmTarget = "11"
     }
 
     defaultConfig {
         applicationId = "com.machmate.controller"
+
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
-        multiDexEnabled = true
+        targetSdk = 35
+
+        versionCode = flutterVersionCode
+        versionName = flutterVersionName
+    }
+
+    buildFeatures {
+        viewBinding = true
+        buildConfig = true
     }
 
     signingConfigs {
@@ -49,14 +71,12 @@ android {
 
     buildTypes {
         getByName("release") {
-            // Use release keystore for release builds
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             isShrinkResources = false
         }
 
         getByName("debug") {
-            // Use release config for debug too (fixes "path is null" error)
             signingConfig = signingConfigs.getByName("release")
         }
     }
@@ -77,6 +97,8 @@ android {
         noCompress("flutter_assets")
     }
 }
+
+/* ------------------ FLUTTER CONFIG ------------------ */
 
 flutter {
     source = "../.."

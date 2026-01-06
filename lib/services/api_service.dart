@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  static const String baseUrl = 'https://api.machmate.in/iot';
+  static const String baseUrl = 'https://api.ezrun.in/iot';
 
   Map<String, dynamic> _safeDecode(String body) {
     if (body.trim().isEmpty) return <String, dynamic>{};
@@ -138,6 +138,8 @@ class ApiService {
         'device_id': deviceId,
         'new_name': newName,
       });
+
+
 
   Future<Map<String, dynamic>> changeAdmin({
     required int deviceId,

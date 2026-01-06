@@ -7,7 +7,7 @@ class MqttService {
   factory MqttService() => instance;
 
   // EMQX MQTT Broker with TLS
-  final String broker = "r11ab6d2.ala.asia-southeast1.emqxsl.com";
+  final String broker = "mqtt.ezrun.in";
   final int port = 8883;
   final String mqttUser = "nk";
   final String mqttPass = "9898434411";
@@ -110,6 +110,39 @@ class MqttService {
       _client?.disconnect();
       _client = null;
       throw Exception("Failed to send command: ${e.toString()}");
+    }
+  }
+
+  Future<void> setPin(String deviceCode, String newPin) async {
+    print("[MQTT] Setting PIN for device: $deviceCode");
+
+    try {
+      // Ensure connection
+      if (_client == null ||
+          _client!.connectionStatus?.state != MqttConnectionState.connected) {
+        print("[MQTT] Not connected, establishing connection...");
+        await connect();
+        await Future.delayed(const Duration(milliseconds: 300));
+      }
+
+      if (_client == null ||
+          _client!.connectionStatus?.state != MqttConnectionState.connected) {
+        throw Exception("MQTT connection failed.");
+      }
+
+      final topic = "shutter/$deviceCode/password";
+      
+      final builder = MqttClientPayloadBuilder()..addString(newPin);
+      
+      // Publish with Retain = true
+      _client!.publishMessage(topic, MqttQos.atLeastOnce, builder.payload!, retain: true);
+
+      print("[MQTT] PIN set successfully: $newPin → $topic (Retained)");
+    } catch (e) {
+      print("[MQTT] Set PIN failed: $e");
+      _client?.disconnect();
+      _client = null;
+      throw Exception("Failed to set PIN: ${e.toString()}");
     }
   }
 

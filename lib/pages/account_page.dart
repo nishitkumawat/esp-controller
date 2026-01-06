@@ -3,6 +3,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import 'login_page.dart';
+import '../services/mqtt_service.dart' as import_mqtt;
 
 class AccountPage extends StatefulWidget {
   const AccountPage({super.key});
@@ -719,7 +720,7 @@ class _AccountPageState extends State<AccountPage> {
                                                   color: Color(0xFFFFA500),
                                                 ),
                                                 onPressed: () {
-                                                  _renameDevice(deviceId, deviceName);
+                                                  _renameDevice(deviceId, deviceName, deviceCode);
                                                                                                 },
                                                 tooltip: 'Edit device name',
                                               ),
@@ -975,7 +976,11 @@ class _AccountPageState extends State<AccountPage> {
     }
   }
 
-  Future<void> _renameDevice(int deviceId, String currentName) async {
+  Future<void> _renameDevice(
+    int deviceId,
+    String currentName,
+    String? deviceCode,
+  ) async {
     final controller = TextEditingController(text: currentName);
 
     final confirmed = await showDialog<bool>(
@@ -988,13 +993,39 @@ class _AccountPageState extends State<AccountPage> {
           'Edit Device Name',
           style: TextStyle(color: Color(0xFFFFA500)),
         ),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Device Name',
-            hintText: 'Enter new device name',
-          ),
-          autofocus: true,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                labelText: 'Device Name',
+                hintText: 'Enter new device name',
+              ),
+              autofocus: true,
+            ),
+            const SizedBox(height: 16),
+            if (deviceCode != null && deviceCode.isNotEmpty)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context, false); // Close current dialog
+                    _changeDevicePin(deviceCode); // Open PIN dialog with CODE
+                  },
+                  icon: const Icon(Icons.lock_reset,
+                      size: 18, color: Color(0xFFFFA500)),
+                  label: const Text(
+                    'Change PIN',
+                    style: TextStyle(
+                      color: Color(0xFFFFA500),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
         actions: [
           TextButton(
@@ -1044,6 +1075,80 @@ class _AccountPageState extends State<AccountPage> {
       } catch (e) {
         Fluttertoast.showToast(
           msg: 'Failed to rename device: ${e.toString()}',
+          toastLength: Toast.LENGTH_SHORT,
+          gravity: ToastGravity.BOTTOM,
+          backgroundColor: Colors.red,
+          textColor: Colors.white,
+        );
+      }
+    }
+  }
+
+  Future<void> _changeDevicePin(String deviceCode) async {
+    final pinController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text(
+          'Change Device PIN',
+          style: TextStyle(color: Color(0xFFFFA500)),
+        ),
+        content: TextField(
+          controller: pinController,
+          decoration: const InputDecoration(
+            labelText: 'New 4-Digit PIN',
+            hintText: 'Enter 4-digit PIN',
+          ),
+          keyboardType: TextInputType.number,
+          maxLength: 4,
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFFA500),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Save PIN'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final pin = pinController.text.trim();
+      if (pin.length != 4 || int.tryParse(pin) == null) {
+        Fluttertoast.showToast(
+          msg: 'Please enter a valid 4-digit PIN',
+          backgroundColor: Colors.red,
+          textColor: Colors.white,
+        );
+        return;
+      }
+
+      try {
+        // Use MQTT Service instead of API Service
+        // Assuming MqttService is a singleton and accessible
+         await import_mqtt.MqttService.instance.setPin(deviceCode, pin);
+
+        Fluttertoast.showToast(
+          msg: 'PIN updated via MQTT (Retained)',
+          toastLength: Toast.LENGTH_SHORT,
+          gravity: ToastGravity.BOTTOM,
+          backgroundColor: Colors.green,
+          textColor: Colors.white,
+        );
+      } catch (e) {
+        Fluttertoast.showToast(
+          msg: 'Failed to set PIN: ${e.toString()}',
           toastLength: Toast.LENGTH_SHORT,
           gravity: ToastGravity.BOTTOM,
           backgroundColor: Colors.red,

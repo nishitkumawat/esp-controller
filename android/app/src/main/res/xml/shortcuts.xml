@@ -1,53 +1,35 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.machmate.controller">
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.INTERNET" />
+    <shortcut
+        android:shortcutId="open_app"
+        android:enabled="true"
+        android:shortcutShortLabel="@string/shortcut_open_short"
+        android:shortcutLongLabel="@string/shortcut_open_long"
+        android:icon="@mipmap/ic_launcher">
 
-    <application
-        android:name="${applicationName}"
-        android:label="EZrun"
-        android:icon="@mipmap/ic_launcher"
-        android:allowBackup="true"
-        android:supportsRtl="true"
-        android:theme="@style/LaunchTheme">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.machmate.controller"
+            android:targetClass="com.machmate.controller.MainActivity">
+            <category android:name="android.intent.category.BROWSABLE"/>
+        </intent>
+    </shortcut>
 
-        <!-- Static App Shortcuts -->
-        <meta-data
-            android:name="android.app.shortcuts"
-            android:resource="@xml/shortcuts" />
+    <shortcut
+        android:shortcutId="voice_command"
+        android:enabled="true"
+        android:shortcutShortLabel="@string/voice_command_short"
+        android:shortcutLongLabel="@string/voice_command_long"
+        android:icon="@mipmap/ic_launcher">
 
-        <!-- Flutter embedding version -->
-        <meta-data
-            android:name="flutterEmbedding"
-            android:value="2" />
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.machmate.controller"
+            android:targetClass="com.machmate.controller.MainActivity">
+            <category android:name="android.intent.category.BROWSABLE"/>
+            <extra android:name="voice_command" android:value="true"/>
+        </intent>
+    </shortcut>
 
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:launchMode="singleTop"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
-            android:hardwareAccelerated="true"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/LaunchTheme">
-
-            <meta-data
-                android:name="io.flutter.embedding.android.NormalTheme"
-                android:resource="@style/NormalTheme" />
-
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
-            </intent-filter>
-
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="machmate" android:host="action"/>
-            </intent-filter>
-
-        </activity>
-
-    </application>
-
-</manifest>
+</shortcuts>

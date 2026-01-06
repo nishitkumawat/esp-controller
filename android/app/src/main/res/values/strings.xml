@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <string name="open_shutter_motor">Open Shutter Motor</string>
-    <string name="stop_shutter_motor">Stop Shutter Motor</string>
-    <string name="close_shutter_motor">Close Shutter Motor</string>
-
+    <string name="app_name">Ezrun</string>
+    <string name="shortcut_open_short">Open Ezrun</string>
+    <string name="shortcut_open_long">Open Ezrun App</string>
+    <string name="voice_command_short">Ezrun</string>
+    <string name="voice_command_long">Ezrun Voice Command</string>
 </resources>

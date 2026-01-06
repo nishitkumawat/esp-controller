@@ -2,7 +2,7 @@ name: machmate_controller
 description: "A new Flutter project."
 publish_to: "none"
 
-version: 1.0.2+5
+version: 1.1.0+9
 
 environment:
   sdk: ^3.9.2
@@ -20,6 +20,8 @@ dependencies:
   wifi_iot: ^0.3.19
   http: ^1.2.0
   url_launcher: ^6.3.1
+  receive_intent: ^0.2.4
+  speech_to_text: ^7.3.0
 
 dev_dependencies:
   flutter_test:

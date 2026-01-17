@@ -20,12 +20,15 @@ class _AddDevicePageState extends State<AddDevicePage> {
   final AuthService _authService = AuthService();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+  bool _canSubmit = false;
 
   late DeviceAutoDetect autoDetect;
 
   @override
   void initState() {
     super.initState();
+
+    _deviceCodeController.addListener(_recomputeCanSubmit);
 
     // start auto-detect listener
     autoDetect = DeviceAutoDetect();
@@ -40,6 +43,18 @@ class _AddDevicePageState extends State<AddDevicePage> {
       } catch (e) {
         print("Auto-detect callback error: $e");
       }
+    });
+
+    _recomputeCanSubmit();
+  }
+
+  void _recomputeCanSubmit() {
+    final code = _deviceCodeController.text.trim();
+    final next = code.length == 16;
+    if (next == _canSubmit) return;
+    if (!mounted) return;
+    setState(() {
+      _canSubmit = next;
     });
   }
 
@@ -138,137 +153,165 @@ class _AddDevicePageState extends State<AddDevicePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
         title: const Text(
           'Add Device',
           style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF2C3E50),
           ),
         ),
-        backgroundColor: const Color(0xFFFFA500),
+        backgroundColor: Colors.white,
         elevation: 0,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(16),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 40),
-                // Icon
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFA500).withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.add_circle_outline,
-                    size: 60,
-                    color: Color(0xFFFFA500),
-                  ),
-                ),
-                const SizedBox(height: 32),
-                const Text(
-                  'Add New Device',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFFFFA500),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
                 const SizedBox(height: 8),
-                Text(
-                  'Enter the 16-character device code',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey[600],
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 48),
-                // Device Code Input
-                TextFormField(
-                  controller: _deviceCodeController,
-                  decoration: InputDecoration(
-                    labelText: 'Device Code',
-                    hintText: 'Enter 16-character code',
-                    prefixIcon: const Icon(
-                      Icons.qr_code,
-                      color: Color(0xFFFFA500),
-                    ),
-                    counterText: '',
-                  ),
-                  maxLength: 16,
-                  textCapitalization: TextCapitalization.characters,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
-                  ],
-                  validator: _validateDeviceCode,
-                  textInputAction: TextInputAction.done,
-                  onFieldSubmitted: (_) => _addDevice(),
-                ),
-                const SizedBox(height: 32),
-                // Add Button
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _addDevice,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFA500),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: _isLoading ? 2 : 6,
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : const Text(
-                          'Add Device',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                ),
-                const SizedBox(height: 24),
-                // Info Card
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFA500).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: const Color(0xFFFFA500).withOpacity(0.3),
-                    ),
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.black.withOpacity(0.06)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 14,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
                   ),
                   child: Row(
                     children: [
-                      const Icon(
-                        Icons.info_outline,
-                        color: Color(0xFFFFA500),
-                        size: 24,
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFA500).withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: const Icon(
+                          Icons.qr_code_scanner,
+                          color: Color(0xFFFFA500),
+                          size: 26,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Add your device',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF2C3E50),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Enter the 16-character code',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.black.withOpacity(0.06)),
+                  ),
+                  child: TextFormField(
+                    controller: _deviceCodeController,
+                    decoration: InputDecoration(
+                      hintText: 'Device code',
+                      prefixIcon: const Icon(Icons.qr_code),
+                      border: InputBorder.none,
+                      counterText: '',
+                    ),
+                    maxLength: 16,
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+                    ],
+                    validator: _validateDeviceCode,
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => _addDevice(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: (_isLoading || !_canSubmit) ? null : _addDevice,
+                    style: ButtonStyle(
+                      backgroundColor: MaterialStateProperty.resolveWith((states) {
+                        if (states.contains(MaterialState.disabled)) {
+                          return const Color(0xFFB8C1CC);
+                        }
+                        return const Color(0xFF2C3E50);
+                      }),
+                      foregroundColor: MaterialStateProperty.all(Colors.white),
+                      elevation: MaterialStateProperty.all(0),
+                      shape: MaterialStateProperty.all(
+                        RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Text(
+                            'Add Device',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: Colors.black.withOpacity(0.06)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFA500).withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(Icons.info_outline, color: Color(0xFFFFA500)),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           'If the device doesn\'t exist, you\'ll become the admin. If it exists and you\'re not linked, a request will be sent.',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[700],
-                          ),
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
                         ),
                       ),
                     ],

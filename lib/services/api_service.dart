@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   static const String baseUrl = 'https://api.ezrun.in/iot';
+  // static const String baseUrl = 'http://10.0.2.2:8000/iot';
 
   Map<String, dynamic> _safeDecode(String body) {
     if (body.trim().isEmpty) return <String, dynamic>{};
@@ -256,5 +257,42 @@ class ApiService {
     }
 
     return _get('/user_devices/?user_id=$userId');
+  }
+
+  // ---------- Solar ----------
+  Future<Map<String, dynamic>> getSolarStats({
+    required String deviceCode,
+    required String period, // 'day', 'month', or 'year'
+  }) async {
+    final uri = Uri.parse(baseUrl.replaceFirst('/iot', '/api/solar/stats?device_id=$deviceCode&period=$period'));
+    
+    final response = await http.get(
+      uri,
+      headers: const {'Content-Type': 'application/json'},
+    );
+    return _safeDecode(response.body);
+  }
+
+  /// Fetches the latest solar data point for a device
+  /// Returns a map containing the latest power, voltage, current, and energy values
+  Future<Map<String, dynamic>> getLatestSolarData({
+    required String deviceCode,
+  }) async {
+    final uri = Uri.parse(baseUrl.replaceFirst('/iot', '/api/solar/latest?device_id=$deviceCode'));
+    
+    final response = await http.get(
+      uri,
+      headers: const {'Content-Type': 'application/json'},
+    );
+    
+    final data = _safeDecode(response.body);
+    
+    // If the response is successful, return the data
+    if (response.statusCode == 200 && data['status'] == true) {
+      return data['data'] ?? {};
+    }
+    
+    // If there's an error, throw an exception with the error message
+    throw Exception(data['message'] ?? 'Failed to fetch latest solar data');
   }
 }

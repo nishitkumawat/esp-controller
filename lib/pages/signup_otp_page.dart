@@ -150,94 +150,76 @@ class _SignupOtpPageState extends State<SignupOtpPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF5F7FA),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFFFFA500)),
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF2C3E50)),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 32),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFA500).withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.sms_outlined,
-                  size: 60,
-                  color: Color(0xFFFFA500),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Enter OTP',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey[900],
-                ),
-                textAlign: TextAlign.center,
-              ),
               const SizedBox(height: 8),
-              Text(
-                'We sent a 6-digit code to your phone.',
+              const Text(
+                'OTP verification',
                 style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
+                  fontSize: 34,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF2C3E50),
                 ),
-                textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 32),
-              TextField(
-                controller: _otpController,
-                keyboardType: TextInputType.number,
-                maxLength: 6,
-                decoration: InputDecoration(
-                  labelText: 'OTP',
-                  counterText: '',
-                  prefixIcon: const Icon(Icons.password, color: Color(0xFFFFA500)),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
+              const SizedBox(height: 10),
+              Text(
+                'Enter the 6-digit code sent to your phone.',
+                style: TextStyle(color: Colors.grey.shade700),
+              ),
+              const SizedBox(height: 18),
+              _inputCard(
+                child: TextField(
+                  controller: _otpController,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  decoration: const InputDecoration(
+                    hintText: 'OTP',
+                    counterText: '',
+                    prefixIcon: Icon(Icons.password),
+                    border: InputBorder.none,
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _isLoading ? null : _verifyOtp,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFFA500),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+              const SizedBox(height: 18),
+              SizedBox(
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _verifyOtp,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFB8C1CC),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text(
+                          'Verify',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                        ),
                 ),
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : const Text(
-                        'Verify',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
               ),
               const SizedBox(height: 12),
               TextButton(
@@ -248,14 +230,33 @@ class _SignupOtpPageState extends State<SignupOtpPage> {
                       ? 'Resend OTP ($_secondsRemaining s)'
                       : 'Resend OTP',
                   style: const TextStyle(
-                    color: Color(0xFFFFA500),
-                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF2C3E50),
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _inputCard({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.black.withOpacity(0.05)),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          inputDecorationTheme: const InputDecorationTheme(
+            isDense: true,
+          ),
+        ),
+        child: child,
       ),
     );
   }

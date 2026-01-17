@@ -21,6 +21,8 @@ class _SignupPageState extends State<SignupPage> with SingleTickerProviderStateM
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _agree = true;
+  bool _canSubmit = false;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -28,6 +30,9 @@ class _SignupPageState extends State<SignupPage> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
+    phoneController.addListener(_recomputeCanSubmit);
+    passwordController.addListener(_recomputeCanSubmit);
+    confirmPasswordController.addListener(_recomputeCanSubmit);
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
@@ -51,6 +56,19 @@ class _SignupPageState extends State<SignupPage> with SingleTickerProviderStateM
     );
     
     _animationController.forward();
+    _recomputeCanSubmit();
+  }
+
+  void _recomputeCanSubmit() {
+    final phone = phoneController.text.trim();
+    final pass = passwordController.text;
+    final confirm = confirmPasswordController.text;
+    final next = _agree && phone.length >= 10 && pass.length >= 6 && confirm == pass;
+    if (next == _canSubmit) return;
+    if (!mounted) return;
+    setState(() {
+      _canSubmit = next;
+    });
   }
 
   @override
@@ -150,18 +168,18 @@ class _SignupPageState extends State<SignupPage> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF5F7FA),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFFFFA500)),
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF2C3E50)),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
           child: FadeTransition(
             opacity: _fadeAnimation,
             child: SlideTransition(
@@ -169,110 +187,62 @@ class _SignupPageState extends State<SignupPage> with SingleTickerProviderStateM
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Logo/Title Section
-                  TweenAnimationBuilder<double>(
-                    tween: Tween(begin: 0.0, end: 1.0),
-                    duration: const Duration(milliseconds: 800),
-                    curve: Curves.elasticOut,
-                    builder: (context, value, child) {
-                      return Transform.scale(
-                        scale: value,
-                        child: Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFA500).withOpacity(0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.person_add_outlined,
-                            size: 60,
-                            color: Color(0xFFFFA500),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Create Account',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFFFFA500).withOpacity(0.9),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
                   const SizedBox(height: 8),
-                  Text(
-                    'Sign up to get started',
+                  const Text(
+                    'Sign up',
                     style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey[600],
+                      fontSize: 34,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF2C3E50),
                     ),
-                    textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 32),
-                  // Form
+                  const SizedBox(height: 18),
                   Form(
                     key: _formKey,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // Name Field (optional)
-                        _buildAnimatedField(
-                          index: 0,
+                        _inputCard(
                           child: TextFormField(
                             controller: nameController,
                             decoration: const InputDecoration(
-                              labelText: 'Name (optional)',
-                              hintText: 'Enter your name',
-                              prefixIcon: Icon(
-                                Icons.person_outline,
-                                color: Color(0xFFFFA500),
-                              ),
+                              hintText: 'Name (optional)',
+                              prefixIcon: Icon(Icons.person_outline),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(vertical: 14),
                             ),
                             textInputAction: TextInputAction.next,
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        // Phone Number Field
-                        _buildAnimatedField(
-                          index: 1,
+                        const SizedBox(height: 12),
+                        _inputCard(
                           child: TextFormField(
                             controller: phoneController,
                             keyboardType: TextInputType.phone,
-                            decoration: InputDecoration(
-                              labelText: 'Phone Number',
-                              hintText: 'Enter phone number',
-                              prefixIcon: const Icon(
-                                Icons.phone_outlined,
-                                color: Color(0xFFFFA500),
-                              ),
+                            decoration: const InputDecoration(
+                              hintText: 'Phone number',
+                              prefixIcon: Icon(Icons.phone_outlined),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(vertical: 14),
                             ),
                             validator: _validatePhone,
                             textInputAction: TextInputAction.next,
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        // Password Field
-                        _buildAnimatedField(
-                          index: 2,
+                        const SizedBox(height: 12),
+                        _inputCard(
                           child: TextFormField(
                             controller: passwordController,
                             obscureText: _obscurePassword,
                             decoration: InputDecoration(
-                              labelText: 'Password',
-                              hintText: 'Enter your password',
-                              prefixIcon: const Icon(
-                                Icons.lock_outline,
-                                color: Color(0xFFFFA500),
-                              ),
+                              hintText: 'Password',
+                              prefixIcon: const Icon(Icons.lock_outline),
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscurePassword
                                       ? Icons.visibility_outlined
                                       : Icons.visibility_off_outlined,
-                                  color: const Color(0xFFFFA500).withOpacity(0.6),
+                                  color: Colors.grey.shade700,
                                 ),
                                 onPressed: () {
                                   setState(() {
@@ -280,31 +250,27 @@ class _SignupPageState extends State<SignupPage> with SingleTickerProviderStateM
                                   });
                                 },
                               ),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 14),
                             ),
                             validator: _validatePassword,
                             textInputAction: TextInputAction.next,
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        // Confirm Password Field
-                        _buildAnimatedField(
-                          index: 3,
+                        const SizedBox(height: 12),
+                        _inputCard(
                           child: TextFormField(
                             controller: confirmPasswordController,
                             obscureText: _obscureConfirmPassword,
                             decoration: InputDecoration(
-                              labelText: 'Confirm Password',
-                              hintText: 'Re-enter your password',
-                              prefixIcon: const Icon(
-                                Icons.lock_outline,
-                                color: Color(0xFFFFA500),
-                              ),
+                              hintText: 'Confirm password',
+                              prefixIcon: const Icon(Icons.lock_outline),
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscureConfirmPassword
                                       ? Icons.visibility_outlined
                                       : Icons.visibility_off_outlined,
-                                  color: const Color(0xFFFFA500).withOpacity(0.6),
+                                  color: Colors.grey.shade700,
                                 ),
                                 onPressed: () {
                                   setState(() {
@@ -312,36 +278,33 @@ class _SignupPageState extends State<SignupPage> with SingleTickerProviderStateM
                                   });
                                 },
                               ),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 14),
                             ),
                             validator: _validateConfirmPassword,
+                            textInputAction: TextInputAction.done,
                             onFieldSubmitted: (_) => _handleSignup(),
                           ),
                         ),
-                        const SizedBox(height: 32),
-                        // Sign Up Button
-                        TweenAnimationBuilder<double>(
-                          tween: Tween(begin: 0.0, end: 1.0),
-                          duration: const Duration(milliseconds: 1000),
-                          curve: Curves.easeOut,
-                          builder: (context, value, child) {
-                            return Opacity(
-                              opacity: value,
-                              child: Transform.scale(
-                                scale: 0.8 + (0.2 * value),
-                                child: child,
-                              ),
-                            );
-                          },
+                        const SizedBox(height: 18),
+                        SizedBox(
+                          height: 52,
                           child: ElevatedButton(
-                            onPressed: _isLoading ? null : _handleSignup,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFFFA500),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                            onPressed: (_isLoading || !_canSubmit) ? null : _handleSignup,
+                            style: ButtonStyle(
+                              backgroundColor: MaterialStateProperty.resolveWith((states) {
+                                if (states.contains(MaterialState.disabled)) {
+                                  return const Color(0xFFB8C1CC);
+                                }
+                                return const Color(0xFF2C3E50);
+                              }),
+                              foregroundColor: MaterialStateProperty.all(Colors.white),
+                              elevation: MaterialStateProperty.all(0),
+                              shape: MaterialStateProperty.all(
+                                RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
                               ),
-                              elevation: _isLoading ? 2 : 6,
                             ),
                             child: _isLoading
                                 ? const SizedBox(
@@ -353,37 +316,50 @@ class _SignupPageState extends State<SignupPage> with SingleTickerProviderStateM
                                     ),
                                   )
                                 : const Text(
-                                    'Sign Up',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                    'Sign up',
+                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                                   ),
                           ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Checkbox(
+                              value: _agree,
+                              onChanged: (v) {
+                                setState(() {
+                                  _agree = v ?? false;
+                                });
+                                _recomputeCanSubmit();
+                              },
+                              activeColor: const Color(0xFF2C3E50),
+                            ),
+                            Expanded(
+                              child: Text(
+                                'Log in means that you have read, understood and agreed to the\nPrivacy Policy and Terms of Use',
+                                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  // Login Link
+                  const SizedBox(height: 18),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
                         'Already have an account? ',
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 14,
-                        ),
+                        style: TextStyle(color: Colors.grey.shade700),
                       ),
                       TextButton(
                         onPressed: () => Navigator.pop(context),
                         child: const Text(
-                          'Login',
+                          'Log in',
                           style: TextStyle(
-                            color: Color(0xFFFFA500),
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF2C3E50),
                           ),
                         ),
                       ),
@@ -394,6 +370,25 @@ class _SignupPageState extends State<SignupPage> with SingleTickerProviderStateM
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _inputCard({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.black.withOpacity(0.05)),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          inputDecorationTheme: const InputDecorationTheme(
+            isDense: true,
+          ),
+        ),
+        child: child,
       ),
     );
   }

@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/mqtt_service.dart';
 import 'device_control_page.dart';
+import 'solar_cleaner_page.dart';
 
 class YourDevicesPage extends StatefulWidget {
   const YourDevicesPage({super.key});
@@ -19,6 +20,7 @@ class _YourDevicesPageState extends State<YourDevicesPage> with AutomaticKeepAli
   List<dynamic> _devices = [];
   bool _isLoading = true;
   int? _userId;
+  bool _autoOpenedSingleDevice = false;
 
   @override
   void initState() {
@@ -50,10 +52,28 @@ class _YourDevicesPageState extends State<YourDevicesPage> with AutomaticKeepAli
       }
 
       final response = await _apiService.getMyDevices(userId: _userId!);
-      setState(() {
-        _devices = response['devices'] ?? [];
-        _isLoading = false;
-      });
+      final devices = response['devices'] ?? [];
+
+      if (!_autoOpenedSingleDevice && mounted && devices.length == 1) {
+        _autoOpenedSingleDevice = true;
+        setState(() {
+          _devices = devices;
+          _isLoading = true;
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          if (!mounted || devices.isEmpty) return;
+          await _openDevice(devices.first, fromAutoOpen: true);
+          if (!mounted) return;
+          setState(() {
+            _isLoading = false;
+          });
+        });
+      } else {
+        setState(() {
+          _devices = devices;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       setState(() => _isLoading = false);
       Fluttertoast.showToast(
@@ -66,19 +86,68 @@ class _YourDevicesPageState extends State<YourDevicesPage> with AutomaticKeepAli
     }
   }
 
+  Future<void> _openDevice(dynamic device, {bool fromAutoOpen = false}) async {
+    final deviceName = device['name'] ?? 'Unnamed Device';
+    final deviceCode = device['device_code'] ?? '';
+    final dynamic rawDeviceId = device['device_id'] ?? device['id'];
+    final int? deviceId = rawDeviceId is int
+        ? rawDeviceId
+        : int.tryParse(rawDeviceId?.toString() ?? '');
+    final role = device['role'] ?? 'Member';
+    final isAdmin = role == 'Admin' || role == 'admin';
+
+    final deleted = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) {
+          // Check device type based on 2nd and 3rd characters
+          // xxSM... -> Shutter Motor
+          // xxCS... -> Solar Cleaner
+          bool isSolarCleaner = false;
+          if (deviceCode.length >= 3) {
+            final type = deviceCode.substring(1, 3).toUpperCase();
+            if (type == 'CS') {
+              isSolarCleaner = true;
+            }
+          }
+
+          if (isSolarCleaner) {
+            return SolarCleanerPage(
+              deviceCode: deviceCode,
+              deviceName: deviceName,
+              deviceId: deviceId,
+              isAdmin: isAdmin,
+              skipInitialLoading: fromAutoOpen,
+            );
+          } else {
+            return DeviceControlPage(
+              deviceCode: deviceCode,
+              deviceName: deviceName,
+              deviceId: deviceId,
+              isAdmin: isAdmin,
+            );
+          }
+        },
+      ),
+    );
+    if (deleted == true) {
+      await _loadDevices();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
         title: const Text(
           'Your Devices',
           style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF2C3E50),
           ),
         ),
-        backgroundColor: const Color(0xFFFFA500),
+        backgroundColor: Colors.white,
         elevation: 0,
         actions: [
           IconButton(
@@ -110,6 +179,7 @@ class _YourDevicesPageState extends State<YourDevicesPage> with AutomaticKeepAli
                         style: TextStyle(
                           fontSize: 18,
                           color: Colors.grey[600],
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -140,94 +210,86 @@ class _YourDevicesPageState extends State<YourDevicesPage> with AutomaticKeepAli
                       final role = device['role'] ?? 'Member';
                       final isAdmin = role == 'Admin' || role == 'admin';
 
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: InkWell(
-                          onTap: () async {
-                            final deleted = await Navigator.push<bool>(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => DeviceControlPage(
-                                  deviceCode: deviceCode,
-                                  deviceName: deviceName,
-                                  deviceId: deviceId,
-                                  isAdmin: isAdmin,
+                      return InkWell(
+                        onTap: () async {
+                          await _openDevice(device);
+                        },
+                        borderRadius: BorderRadius.circular(18),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: Colors.black.withOpacity(0.06)),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFA500).withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(14),
                                 ),
-                              ),
-                            );
-                            if (deleted == true) {
-                              await _loadDevices();
-                            }
-                          },
-                          borderRadius: BorderRadius.circular(16),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFFA500).withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Icon(
-                                    Icons.devices,
-                                    color: Color(0xFFFFA500),
-                                    size: 28,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        deviceName,
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: isAdmin
-                                                  ? const Color(0xFFFFA500).withOpacity(0.2)
-                                                  : Colors.grey.withOpacity(0.2),
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            child: Text(
-                                              role,
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
-                                                color: isAdmin
-                                                    ? const Color(0xFFFFA500)
-                                                    : Colors.grey[700],
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const Icon(
-                                  Icons.chevron_right,
+                                child: const Icon(
+                                  Icons.devices_outlined,
                                   color: Color(0xFFFFA500),
                                 ),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      deviceName,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFF2C3E50),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      deviceCode,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade700,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: isAdmin
+                                            ? const Color(0xFFFFA500).withOpacity(0.14)
+                                            : Colors.black.withOpacity(0.06),
+                                        borderRadius: BorderRadius.circular(999),
+                                      ),
+                                      child: Text(
+                                        role,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: isAdmin
+                                              ? const Color(0xFFFFA500)
+                                              : Colors.grey.shade700,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(
+                                Icons.chevron_right,
+                                color: Colors.grey.shade600,
+                              ),
+                            ],
                           ),
                         ),
                       );

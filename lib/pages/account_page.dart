@@ -466,16 +466,13 @@ class _AccountPageState extends State<AccountPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
         title: const Text(
           'Account',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w700),
         ),
-        backgroundColor: const Color(0xFFFFA500),
+        backgroundColor: Colors.white,
         elevation: 0,
         actions: [
           IconButton(
@@ -491,308 +488,465 @@ class _AccountPageState extends State<AccountPage> {
                 valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFFA500)),
               ),
             )
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // User Info Card
-                  Card(
-                    elevation: 2,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFA500).withOpacity(0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.person,
-                              color: Color(0xFFFFA500),
-                              size: 28,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _userName != null && _userName!.isNotEmpty
-                                      ? _userName!
-                                      : (_phoneNumber != null && _phoneNumber!.isNotEmpty
-                                          ? _phoneNumber!
-                                          : 'User Account'),
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                if (_phoneNumber != null &&
-                                    _phoneNumber!.isNotEmpty)
-                                  Text(
-                                    'Phone: $_phoneNumber',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ],
+          : _buildAccountOverview(),
+    );
+  }
+
+  Widget _buildAccountOverview() {
+    final displayName = _userName != null && _userName!.isNotEmpty
+        ? _userName!
+        : (_phoneNumber != null && _phoneNumber!.isNotEmpty
+            ? _phoneNumber!
+            : 'User');
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.black.withOpacity(0.06)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFA500).withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: const Icon(
+                    Icons.person_outline,
+                    color: Color(0xFFFFA500),
+                    size: 26,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        displayName,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF2C3E50),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _phoneNumber != null && _phoneNumber!.isNotEmpty
+                            ? _phoneNumber!
+                            : 'Phone not available',
+                        style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildAccountTile(
+            icon: Icons.badge_outlined,
+            title: 'Your profile',
+            subtitle: 'View profile details',
+            onTap: _openProfile,
+          ),
+          const SizedBox(height: 12),
+          _buildAccountTile(
+            icon: Icons.admin_panel_settings_outlined,
+            title: 'Devices admin',
+            subtitle: _isAdmin ? 'Manage devices & members' : 'No admin access',
+            onTap: _isAdmin ? _openDeviceAdmin : null,
+          ),
+          const SizedBox(height: 18),
+          ElevatedButton(
+            onPressed: _logout,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            child: const Text(
+              'Logout',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAccountTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.black.withOpacity(0.06)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFA500).withOpacity(0.12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: const Color(0xFFFFA500)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF2C3E50),
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  // Admin Section
-                  if (_isAdmin) ...[
-                    const Text(
-                      'Admin Features',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // Pending Requests
-                    if (_pendingRequests.isNotEmpty) ...[
-                      const Text(
-                        'Pending Access Requests',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      ..._pendingRequests.map((request) {
-                        final requestMap = _asMap(request);
-                        final int? requestId = _toInt(requestMap['request_id']);
-                        final int? deviceId = _toInt(requestMap['device_id']);
-                        final int? requesterUserId = _toInt(requestMap['user_id']);
-                        final deviceName =
-                            requestMap['device_name']?.toString() ?? 'Unknown device';
-                        final requesterPhone = 
-                            requestMap['phone']?.toString() ?? 
-                            requestMap['phone_number']?.toString() ??
-                            'Unknown number';
-                        final requesterName = requestMap['name']?.toString() ??
-                                           requestMap['username']?.toString() ??
-                                           'User';
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          elevation: 1,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            title: Text(
-                              requesterName?.isNotEmpty == true
-                                  ? requesterName!
-                                  : (requesterPhone ?? 'User'),
-                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Device: $deviceName',
-                                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                                ),
-                                if (requesterPhone != null &&
-                                    requesterPhone.isNotEmpty &&
-                                    requesterPhone.toLowerCase() != 'null')
-                                  Text(
-                                    'Phone: $requesterPhone',
-                                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                                  ),
-                              ],
-                            ),
-                            trailing: Wrap(
-                              spacing: 6,
-                              children: [
-                                ElevatedButton(
-                                  onPressed: requestId == null ? null : () => _approveRequest(requestId),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.green,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                    minimumSize: const Size(0, 32),
-                                  ),
-                                  child: const Text('Accept', style: TextStyle(fontSize: 12)),
-                                ),
-                                ElevatedButton(
-                                  onPressed: requestId == null ? null : () => _rejectRequest(requestId),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.red,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                    minimumSize: const Size(0, 32),
-                                  ),
-                                  child: const Text('Reject', style: TextStyle(fontSize: 12)),
-                                ),
-                                ElevatedButton(
-                                  onPressed: (deviceId == null || requesterUserId == null)
-                                      ? null
-                                      : () => _makeAdmin(deviceId, requesterUserId),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFFFA500),
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                    minimumSize: const Size(0, 32),
-                                  ),
-                                  child: const Text('Make Admin', style: TextStyle(fontSize: 12)),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }),
-                      const SizedBox(height: 24),
-                    ],
-                    // Change Admin Section
-                    const Text(
-                      'Change Admin',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    ..._adminDevices.map((device) {
-                      final int? deviceId = _extractDeviceId(device);
-                      if (deviceId == null) {
-                        return const SizedBox.shrink();
-                      }
-                      final deviceMap = _asMap(device);
-                      final deviceName =
-                          deviceMap['name']?.toString() ?? 'Unnamed Device';
-                      final deviceCode = deviceMap['device_code']?.toString() ?? '';
-                      final role =
-                          deviceMap['role']?.toString().toLowerCase() ?? '';
-                      final bool canRename = role == 'admin';
-                      final members = _deviceMembers[deviceId] ?? <dynamic>[];
-
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Flexible(
-                                              child: Text(
-                                                deviceName,
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                            if (canRename) ...[
-                                              const SizedBox(width: 8),
-                                              IconButton(
-                                                icon: const Icon(
-                                                  Icons.edit,
-                                                  size: 18,
-                                                  color: Color(0xFFFFA500),
-                                                ),
-                                                onPressed: () {
-                                                  _renameDevice(deviceId, deviceName, deviceCode);
-                                                                                                },
-                                                tooltip: 'Edit device name',
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                        if (deviceCode.isNotEmpty) ...[
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            'Code: $deviceCode',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey[600],
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              if (members.isNotEmpty) ...[
-                                const Text(
-                                  'Members',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                ...members.map<Widget>((memberData) {
-                                  final memberMap = _asMap(memberData);
-                                  return _buildMemberRow(deviceId, memberMap);
-                                }),
-                              ] else
-                                Text(
-                                  'No members linked yet.',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }),
-                    const SizedBox(height: 24),
-                  ],
-                  // Logout Button
-                  ElevatedButton(
-                    onPressed: _logout,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    child: const Text(
-                      'Logout',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
                   ),
                 ],
               ),
             ),
+            Icon(
+              Icons.chevron_right,
+              color: onTap == null ? Colors.grey.shade300 : Colors.grey.shade600,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openProfile() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) {
+          final displayName = _userName != null && _userName!.isNotEmpty
+              ? _userName!
+              : (_phoneNumber != null && _phoneNumber!.isNotEmpty
+                  ? _phoneNumber!
+                  : 'User');
+          return Scaffold(
+            backgroundColor: const Color(0xFFF5F7FA),
+            appBar: AppBar(
+              title: const Text(
+                'Profile',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              backgroundColor: Colors.white,
+              elevation: 0,
+            ),
+            body: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.black.withOpacity(0.06)),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        displayName,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF2C3E50),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _phoneNumber != null && _phoneNumber!.isNotEmpty
+                            ? 'Phone: $_phoneNumber'
+                            : 'Phone: N/A',
+                        style: TextStyle(color: Colors.grey.shade700),
+                      ),
+                      if (_userId != null) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          'User ID: $_userId',
+                          style: TextStyle(color: Colors.grey.shade700),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _openDeviceAdmin() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) {
+          return Scaffold(
+            backgroundColor: const Color(0xFFF5F7FA),
+            appBar: AppBar(
+              title: const Text(
+                'Device Admin',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              backgroundColor: Colors.white,
+              elevation: 0,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _loadData,
+                ),
+              ],
+            ),
+            body: SafeArea(
+              child: _buildDeviceAdminBody(),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDeviceAdminBody() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_pendingRequests.isNotEmpty) ...[
+            const Text(
+              'Pending Access Requests',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 12),
+            ..._pendingRequests.map((request) {
+              final requestMap = _asMap(request);
+              final int? requestId = _toInt(requestMap['request_id']);
+              final int? deviceId = _toInt(requestMap['device_id']);
+              final int? requesterUserId = _toInt(requestMap['user_id']);
+              final deviceName =
+                  requestMap['device_name']?.toString() ?? 'Unknown device';
+              final requesterPhone = requestMap['phone']?.toString() ??
+                  requestMap['phone_number']?.toString() ??
+                  'Unknown number';
+              final requesterName = requestMap['name']?.toString() ??
+                  requestMap['username']?.toString() ??
+                  'User';
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: ListTile(
+                  title: Text(
+                    requesterName.isNotEmpty ? requesterName : requesterPhone,
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Device: $deviceName',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                      ),
+                      if (requesterPhone.isNotEmpty &&
+                          requesterPhone.toLowerCase() != 'null')
+                        Text(
+                          'Phone: $requesterPhone',
+                          style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                        ),
+                    ],
+                  ),
+                  trailing: Wrap(
+                    spacing: 6,
+                    children: [
+                      ElevatedButton(
+                        onPressed:
+                            requestId == null ? null : () => _approveRequest(requestId),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          minimumSize: const Size(0, 32),
+                        ),
+                        child: const Text('Accept', style: TextStyle(fontSize: 12)),
+                      ),
+                      ElevatedButton(
+                        onPressed:
+                            requestId == null ? null : () => _rejectRequest(requestId),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          minimumSize: const Size(0, 32),
+                        ),
+                        child: const Text('Reject', style: TextStyle(fontSize: 12)),
+                      ),
+                      ElevatedButton(
+                        onPressed: (deviceId == null || requesterUserId == null)
+                            ? null
+                            : () => _makeAdmin(deviceId, requesterUserId),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFFA500),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          minimumSize: const Size(0, 32),
+                        ),
+                        child: const Text('Make Admin', style: TextStyle(fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+            const SizedBox(height: 18),
+          ],
+          const Text(
+            'Devices',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 12),
+          ..._adminDevices.map((device) {
+            final int? deviceId = _extractDeviceId(device);
+            if (deviceId == null) {
+              return const SizedBox.shrink();
+            }
+            final deviceMap = _asMap(device);
+            final deviceName = deviceMap['name']?.toString() ?? 'Unnamed Device';
+            final deviceCode = deviceMap['device_code']?.toString() ?? '';
+            final role = deviceMap['role']?.toString().toLowerCase() ?? '';
+            final bool canRename = role == 'admin';
+            final members = _deviceMembers[deviceId] ?? <dynamic>[];
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.black.withOpacity(0.06)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    deviceName,
+                                    style: const TextStyle(fontWeight: FontWeight.w800),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                if (canRename) ...[
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.edit,
+                                      size: 18,
+                                      color: Color(0xFFFFA500),
+                                    ),
+                                    onPressed: () {
+                                      _renameDevice(deviceId, deviceName, deviceCode);
+                                    },
+                                    tooltip: 'Edit device name',
+                                  ),
+                                ],
+                              ],
+                            ),
+                            if (deviceCode.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                deviceCode,
+                                style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  if (members.isNotEmpty) ...[
+                    const Text(
+                      'Members',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 8),
+                    ...members.map<Widget>((memberData) {
+                      final memberMap = _asMap(memberData);
+                      return _buildMemberRow(deviceId, memberMap);
+                    }),
+                  ] else
+                    Text(
+                      'No members linked yet.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                    ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 

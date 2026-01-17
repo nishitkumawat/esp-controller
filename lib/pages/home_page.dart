@@ -6,20 +6,27 @@ import 'add_device_page.dart';
 import 'account_page.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final int initialIndex;
+
+  const HomePage({
+    super.key,
+    this.initialIndex = 0,
+  });
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  int _currentIndex = 0;
-  final PageController _pageController = PageController();
+  late int _currentIndex;
+  late final PageController _pageController;
   final GlobalKey _devicesPageKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
   }
 
   @override

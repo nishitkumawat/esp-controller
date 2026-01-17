@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 
@@ -14,15 +15,22 @@ class MqttService {
 
   MqttServerClient? _client;
   bool _isConnecting = false;
+  
+  bool _isAutoReconnecting = false;
+  Timer? _reconnectTimer;
 
-  Future<void> connect() async {
+  // Stream for incoming messages
+  final _updatesController = StreamController<Map<String, String>>.broadcast();
+  Stream<Map<String, String>> get updates => _updatesController.stream;
+
+  Future<void> connect({bool isAuto = false}) async {
     if (_isConnecting) return;
     if (_client?.connectionStatus?.state == MqttConnectionState.connected) {
       return;
     }
 
     _isConnecting = true;
-    print("[MQTT] Connecting via TCP/TLS (port $port)...");
+    if (!isAuto) print("[MQTT] Connecting via TCP/TLS (port $port)...");
 
     try {
       final clientId = "app_${DateTime.now().millisecondsSinceEpoch % 999999}";
@@ -32,15 +40,20 @@ class MqttService {
       _client!.logging(on: false);
       _client!.secure = true;
       _client!.onBadCertificate = (dynamic certificate) => true;
+      _client!.keepAlivePeriod = 60;
+      _client!.autoReconnect = true; // Library support, but we add custom too
 
       _client!.onConnected = () {
         print("[MQTT] Connected ✓");
         _isConnecting = false;
+        _isAutoReconnecting = false;
+        _reconnectTimer?.cancel();
       };
 
       _client!.onDisconnected = () {
         print("[MQTT] Disconnected");
         _isConnecting = false;
+        _handleAutoReconnect();
       };
 
       _client!.setProtocolV311();
@@ -48,26 +61,52 @@ class MqttService {
       final connMessage = MqttConnectMessage()
           .authenticateAs(mqttUser, mqttPass)
           .withClientIdentifier(clientId)
-          .keepAliveFor(60)
           .withWillTopic('willtopic')
           .withWillMessage('Will message')
-          .startClean()
+          .startClean() // Clean session to ensure no stale state
           .withWillQos(MqttQos.atLeastOnce);
 
       _client!.connectionMessage = connMessage;
 
-      print("[MQTT] Attempting connection to $broker:$port");
       await _client!.connect();
-      print("[MQTT] Connection successful!");
+      
+      if (_client?.connectionStatus?.state == MqttConnectionState.connected) {
+         print("[MQTT] Connection successful!");
+         
+         // Re-subscribe to essential topics immediately if needed
+         // Note: Logic in pages often subscribes. We might need a way to resubscribe.
+         // For now, simpler app logic relies on page `init` or re-calling subscribe.
+         // Improved approach: Keep a list of subscribed topics and re-sub here.
+         
+         _client!.updates!.listen((List<MqttReceivedMessage<MqttMessage>> c) {
+          final recMess = c[0].payload as MqttPublishMessage;
+          final pt = MqttPublishPayload.bytesToStringAsString(recMess.payload.message);
+          final topic = c[0].topic;
+          
+          print("[MQTT] Received on $topic: $pt");
+          _updatesController.add({'topic': topic, 'message': pt});
+        });
+      }
+
     } catch (e) {
       print("[MQTT] Connection ERROR: $e");
       _isConnecting = false;
-      _client?.disconnect();
-      _client = null;
-      rethrow;
+      _handleAutoReconnect();
     }
   }
 
+  void _handleAutoReconnect() {
+    if (_isAutoReconnecting) return;
+    _isAutoReconnecting = true;
+    print("[MQTT] Connection lost/failed. Auto-reconnecting in 5s...");
+    
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(const Duration(seconds: 5), () {
+        _isAutoReconnecting = false; // Reset flag to allow connect() to run
+        connect(isAuto: true);
+    });
+  }
+  
   Future<void> send(String deviceCode, String command) async {
     // Map UI commands to Arduino commands
     String actualCommand;
@@ -75,12 +114,26 @@ class MqttService {
       actualCommand = "OPEN";
     } else if (command == "CLOSE") {
       actualCommand = "CLOSE";
+    } else if (command == "WASH_NOW") {
+       actualCommand = "WASH_NOW";
+    } else if (command == "WASH_STOP") {
+       actualCommand = "WASH_STOP";
     } else {
       actualCommand = "STOP";
     }
 
+    String topicPrefix = "shutter";
+    if (deviceCode.length > 3) {
+      final type = deviceCode.substring(1, 3).toUpperCase();
+      if (type == "CS") {
+        topicPrefix = "solar";
+      }
+    }
+
+    final topic = "$topicPrefix/$deviceCode/cmd";
+
     print(
-      "[MQTT] Sending command: UI='$command' → ESP32='$actualCommand' to device: $deviceCode",
+      "[MQTT] Sending command: UI='$command' → ESP32='$actualCommand' to device: $deviceCode (Topic: $topic)",
     );
 
     try {
@@ -97,9 +150,7 @@ class MqttService {
         throw Exception("MQTT connection failed.");
       }
 
-      final topic = "shutter/$deviceCode/cmd";
-
-      // Send only the actual command (NO STOP prefix needed!)
+      // Send only the actual command
       final builder = MqttClientPayloadBuilder()..addString(actualCommand);
       _client!.publishMessage(topic, MqttQos.atLeastOnce, builder.payload!);
 
@@ -142,14 +193,30 @@ class MqttService {
       print("[MQTT] Set PIN failed: $e");
       _client?.disconnect();
       _client = null;
-      throw Exception("Failed to set PIN: ${e.toString()}");
+        throw Exception("Failed to set PIN: ${e.toString()}");
+    }
+  }
+
+  Future<void> subscribe(String topic) async {
+    // If disconnected, try to connect first
+    if (_client == null ||
+        _client!.connectionStatus?.state != MqttConnectionState.connected) {
+        // If connecting, wait or just queue? Simple await connect.
+        await connect();
+    }
+    
+    if (_client != null && _client!.connectionStatus?.state == MqttConnectionState.connected) {
+         print("[MQTT] Subscribing to $topic");
+        _client!.subscribe(topic, MqttQos.atLeastOnce);
     }
   }
 
   void disconnect() {
+    _reconnectTimer?.cancel();
     _client?.disconnect();
     _client = null;
     _isConnecting = false;
+    _isAutoReconnecting = false;
     print("[MQTT] Disconnected manually");
   }
 

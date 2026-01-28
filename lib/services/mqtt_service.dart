@@ -197,6 +197,27 @@ class MqttService {
     }
   }
 
+  Future<void> publish(String topic, String message, {bool retain = false}) async {
+    try {
+      if (_client == null ||
+          _client!.connectionStatus?.state != MqttConnectionState.connected) {
+        await connect();
+      }
+
+      if (_client != null &&
+          _client!.connectionStatus?.state == MqttConnectionState.connected) {
+        final builder = MqttClientPayloadBuilder()..addString(message);
+        _client!.publishMessage(topic, MqttQos.atLeastOnce, builder.payload!, retain: retain);
+        print("[MQTT] Published to $topic: $message");
+      } else {
+        throw Exception("MQTT Client not connected");
+      }
+    } catch (e) {
+      print("[MQTT] Publish failed: $e");
+      rethrow;
+    }
+  }
+
   Future<void> subscribe(String topic) async {
     // If disconnected, try to connect first
     if (_client == null ||

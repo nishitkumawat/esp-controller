@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import '../services/auth_service.dart';
 import 'signup_otp_page.dart';
+import 'package:flutter/gestures.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -163,6 +165,13 @@ class _SignupPageState extends State<SignupPage> with SingleTickerProviderStateM
       return 'Passwords do not match';
     }
     return null;
+  }
+
+  Future<void> _launchTerms() async {
+    final Uri url = Uri.parse('https://nishitkumawat.github.io/ezrunpp/index');
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      Fluttertoast.showToast(msg: 'Could not launch URL');
+    }
   }
 
   @override
@@ -335,9 +344,32 @@ class _SignupPageState extends State<SignupPage> with SingleTickerProviderStateM
                               activeColor: const Color(0xFF2C3E50),
                             ),
                             Expanded(
-                              child: Text(
-                                'Log in means that you have read, understood and agreed to the\nPrivacy Policy and Terms of Use',
-                                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                              child: RichText(
+                                text: TextSpan(
+                                  text: 'By signing up, you indicate that you have read, understood and agreed to the ',
+                                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                                  children: [
+                                    TextSpan(
+                                      text: 'Privacy Policy',
+                                      style: const TextStyle(
+                                        color: Color(0xFF2C3E50),
+                                        fontWeight: FontWeight.bold,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                      recognizer: TapGestureRecognizer()..onTap = _launchTerms,
+                                    ),
+                                    const TextSpan(text: ' and '),
+                                    TextSpan(
+                                      text: 'Terms of Use',
+                                      style: const TextStyle(
+                                        color: Color(0xFF2C3E50),
+                                        fontWeight: FontWeight.bold,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                      recognizer: TapGestureRecognizer()..onTap = _launchTerms,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ],

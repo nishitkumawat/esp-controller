@@ -62,6 +62,13 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
   DateTime _selectedMonthYear = DateTime(DateTime.now().year, DateTime.now().month);
   DateTime _selectedYear = DateTime(DateTime.now().year);
   int? _touchedIndex;
+  
+  // Advanced Stats
+  double _periodYield = 0.0;
+  double _avgPower = 0.0;
+  double _moneySaved = 0.0;
+  double _avgEnergy = 0.0;
+  double _todayYield = 0.0;
 
   @override
   void initState() {
@@ -287,7 +294,7 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
                       onTap: () {
                         Navigator.of(context).pop();
                         Navigator.of(this.context).push(
-                          MaterialPageRoute(builder: (_) => const AlertsPage()),
+                          MaterialPageRoute(builder: (_) => AlertsPage(deviceCode: widget.deviceCode)),
                         );
                       },
                     ),
@@ -311,6 +318,50 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
                           await _confirmAndDeleteDevice();
                         },
                       ),
+                    const SizedBox(height: 20),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        "Cleaning Schedule",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF5F7FA),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.schedule, color: Color(0xFF1E88E5)),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextField(
+                                controller: _timerController,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(
+                                  border: InputBorder.none,
+                                  hintText: "Interval (hours)",
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _setTimer();
+                              },
+                              child: const Text("SET", style: TextStyle(fontWeight: FontWeight.bold)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 30),
                   ],
                 ),
               ),
@@ -390,8 +441,11 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
       
       // Get the historical data for the chart
       final res = await _apiService.getSolarStats(
-        deviceCode: widget.deviceCode, 
-        period: _selectedPeriod
+        deviceCode: widget.deviceCode,
+        period: _selectedPeriod,
+        selectedDay: _selectedPeriod == 'day' ? _selectedDay : null,
+        selectedMonth: _selectedPeriod == 'month' ? _selectedMonthYear : null,
+        selectedYear: _selectedPeriod == 'year' ? _selectedYear : null,
       );
       
       if (mounted) {
@@ -412,6 +466,12 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
           }
           
           _weatherCode = _locationData?['weather_code'] ?? 0;
+          
+          _periodYield = (res['period_yield'] ?? 0).toDouble();
+          _avgPower = (res['avg_power'] ?? 0).toDouble();
+          _moneySaved = (res['money_saved'] ?? 0).toDouble();
+          _avgEnergy = (res['avg_energy'] ?? 0).toDouble();
+          _todayYield = (res['today_yield'] ?? 0).toDouble();
         });
       }
     } catch (e) {
@@ -441,6 +501,7 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
 
     try {
       await _mqttService.send(widget.deviceCode, "WASH_NOW");
+      _apiService.recordWashAlert(deviceCode: widget.deviceCode); // Fire and forget
       Fluttertoast.showToast(msg: "WASH Command Sent ✅", backgroundColor: Colors.green, textColor: Colors.white);
     } catch (e) {
       Fluttertoast.showToast(msg: "Failed: $e", backgroundColor: Colors.red, textColor: Colors.white);
@@ -637,40 +698,61 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      // Date Selector (Moved up)
+                      _buildDateSelector(),
+                      const SizedBox(height: 20),
+                      
                       Row(
                         children: [
                           Expanded(
                             child: _buildStatTile(
                               title: 'Yield',
-                              primary: '${_getTodayEnergy().toStringAsFixed(1)} W',
-                              secondary: 'Today',
+                              primary: '${(_periodYield / 1000).toStringAsFixed(2)} kW',
+                              secondary: '', // Removed "Selected Day"
                               icon: Icons.solar_power_outlined,
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: _buildStatTile(
-                              title: 'Power',
-                              primary: '${_currentPower.toStringAsFixed(1)} W',
-                              secondary: 'Now',
+                              title: 'Avg Energy',
+                              primary: '${_avgEnergy.toStringAsFixed(1)} Wh',
+                              secondary: '',
                               icon: Icons.bolt_outlined,
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 12),
-                      _buildStatTile(
-                        title: 'Weather',
-                        primary: _locationData != null && _locationData!['temperature'] != null
-                            ? '${_locationData!['temperature']}°C'
-                            : '--',
-                        secondary: _locationData != null && _locationData!['city'] != null
-                            ? '${_locationData!['city']}, ${_locationData!['state']}'
-                            : 'Location',
-                        icon: Icons.cloud_outlined,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildStatTile(
+                              title: 'Saved Money',
+                              primary: '₹${_moneySaved.toStringAsFixed(2)}',
+                              secondary: '',
+                              icon: Icons.currency_rupee_rounded,
+                              iconColor: Colors.green,
+                              primaryColor: Colors.green,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildStatTile(
+                              title: 'Weather',
+                              primary: _locationData != null && _locationData!['temperature'] != null
+                                  ? '${_locationData!['temperature']}°C'
+                                  : '--',
+                              secondary: _locationData != null && _locationData!['city'] != null
+                                  ? '${_locationData!['city']}, ${_locationData!['state']}'
+                                  : 'Location',
+                              icon: Icons.cloud_outlined,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 20),
-                      // Controls
+                      // Controls (No timer here)
                       _buildControlsSection(),
                       const SizedBox(height: 24),
                       
@@ -705,7 +787,10 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
     required String primary,
     required String secondary,
     required IconData icon,
+    Color? iconColor,
+    Color? primaryColor,
   }) {
+    final Color effectiveColor = iconColor ?? const Color(0xFF1E88E5);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -726,10 +811,10 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: const Color(0xFF1E88E5).withOpacity(0.1),
+              color: effectiveColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(icon, color: const Color(0xFF1E88E5)),
+            child: Icon(icon, color: effectiveColor),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -747,10 +832,10 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
                 const SizedBox(height: 6),
                 Text(
                   primary,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
-                    color: Color(0xFF2C3E50),
+                    color: primaryColor ?? const Color(0xFF2C3E50),
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -801,10 +886,9 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
   }
 
   Widget _buildWeatherHeroSection() {
-    // Determine if it's night for text color
     final hour = DateTime.now().hour;
     final isNight = hour < 6 || hour >= 19;
-    final textColor = isNight ? Colors.white : Colors.black87;
+    final textColor = isNight ? Colors.white : Colors.black; // Forced black for day
     final subtextColor = isNight ? Colors.white70 : Colors.black54;
     
     return SizedBox(
@@ -824,7 +908,7 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  "${_getTodayEnergy().toStringAsFixed(1)} W",
+                  "${_todayYield.toStringAsFixed(1)} Wh",
                   style: TextStyle(
                     color: textColor,
                     fontSize: 16,
@@ -924,6 +1008,8 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
             right: 0,
             child: PowerCircleDisplay(
               power: _currentPower,
+              textColor: textColor,
+              subtextColor: subtextColor,
             ),
           ),
 
@@ -985,59 +1071,10 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
            ],
         ),
         const SizedBox(height: 16),
-        // Timer
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade200, width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E88E5).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.schedule, color: Color(0xFF1E88E5), size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: _timerController,
-                  keyboardType: TextInputType.number,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    hintText: "Interval (hours)",
-                    hintStyle: TextStyle(color: Colors.grey),
-                  ),
-                ),
-              ),
-              TextButton(
-                onPressed: _setTimer,
-                style: TextButton.styleFrom(
-                  backgroundColor: const Color(0xFF1E88E5).withOpacity(0.1),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: const Text("SET", style: TextStyle(color: Color(0xFF1E88E5), fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
-        )
       ],
     );
   }
+
 
   Widget _buildGraphSection() {
     return Container(
@@ -1083,43 +1120,11 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
                     ),
                   ),
                 ),
-                InkWell(
-                  onTap: _openGraphPicker,
-                  borderRadius: BorderRadius.circular(14),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF5F7FA),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.black.withOpacity(0.06)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _getGraphRangeLabel(),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF2C3E50),
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey.shade700),
-                      ],
-                    ),
-                  ),
-                ),
               ],
-            ),
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: _buildPeriodPills(),
             ),
             const SizedBox(height: 14),
             SizedBox(
-              height: 240,
+              height: 300, // Increased height
               child: _isLoadingStats
                   ? const Center(
                       child: CircularProgressIndicator(color: Color(0xFF1E88E5)),
@@ -1145,15 +1150,71 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
       ),
     );
   }
+
+  Widget _buildDateSelector() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: _buildPeriodPills()),
+            const SizedBox(width: 12),
+            InkWell(
+              onTap: _openGraphPicker,
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.black.withOpacity(0.06)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.03),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _getGraphRangeLabel(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF2C3E50),
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey.shade700, size: 20),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  String _getSelectedPeriodLabel() {
+    if (_selectedPeriod == 'day') return 'Selected Day';
+    if (_selectedPeriod == 'month') return 'Selected Month';
+    return 'Selected Year';
+  }
   
   Widget _segmentBtn(String label, String val) {
      bool selected = _selectedPeriod == val;
      return Expanded(
        child: GestureDetector(
          onTap: () {
-            setState(() => _selectedPeriod = val);
-            _touchedIndex = null;
-            _fetchStats();
+             setState(() {
+                _selectedPeriod = val;
+                _isLoadingStats = true;
+             });
+             _touchedIndex = null;
+             _fetchStats();
          },
          child: AnimatedContainer(
            duration: const Duration(milliseconds: 250),
@@ -1207,6 +1268,7 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
       onTap: () {
         setState(() {
           _selectedPeriod = val;
+          _isLoadingStats = true;
           _touchedIndex = null;
         });
         _fetchStats();
@@ -1273,6 +1335,7 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
         onDone: (value) {
           setState(() {
             _selectedDay = value;
+            _isLoadingStats = true;
             _touchedIndex = null;
           });
           _fetchStats();
@@ -1289,6 +1352,7 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
         onDone: (value) {
           setState(() {
             _selectedMonthYear = DateTime(value.year, value.month);
+            _isLoadingStats = true;
             _touchedIndex = null;
           });
           _fetchStats();
@@ -1303,6 +1367,7 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
       onDone: (year) {
         setState(() {
           _selectedYear = DateTime(year);
+          _isLoadingStats = true;
           _touchedIndex = null;
         });
         _fetchStats();

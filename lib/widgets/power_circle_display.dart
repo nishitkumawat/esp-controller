@@ -4,11 +4,15 @@ import 'dart:math' as math;
 class PowerCircleDisplay extends StatefulWidget {
   final double power;
   final String label;
+  final Color textColor;
+  final Color subtextColor;
 
   const PowerCircleDisplay({
     super.key,
     required this.power,
     this.label = "Solar Power Now",
+    this.textColor = Colors.white,
+    this.subtextColor = Colors.white70,
   });
 
   @override
@@ -59,17 +63,17 @@ class _PowerCircleDisplayState extends State<PowerCircleDisplay>
                 children: [
                   Text(
                     widget.power.toStringAsFixed(1),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 48,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: widget.textColor,
                     ),
                   ),
-                  const Text(
+                  Text(
                     "W/h",
                     style: TextStyle(
                       fontSize: 20,
-                      color: Colors.white70,
+                      color: widget.subtextColor,
                     ),
                   ),
                 ],
@@ -80,8 +84,8 @@ class _PowerCircleDisplayState extends State<PowerCircleDisplay>
         const SizedBox(height: 12),
         Text(
           widget.label,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: widget.textColor,
             fontSize: 16,
             fontWeight: FontWeight.w500,
           ),
@@ -107,7 +111,7 @@ class PowerCirclePainter extends CustomPainter {
 
     // Background circle
     final bgPaint = Paint()
-      ..color = Colors.white.withOpacity(0.15)
+      ..color = Colors.grey.withOpacity(0.15) // Neutral gray for visibility
       ..strokeWidth = 12
       ..style = PaintingStyle.stroke;
 

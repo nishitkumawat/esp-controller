@@ -262,14 +262,40 @@ class ApiService {
   // ---------- Solar ----------
   Future<Map<String, dynamic>> getSolarStats({
     required String deviceCode,
-    required String period, // 'day', 'month', or 'year'
+    required String period, // 'day', 'month', 'year'
+    DateTime? selectedDay,
+    DateTime? selectedMonth,
+    DateTime? selectedYear,
   }) async {
-    final uri = Uri.parse(baseUrl.replaceFirst('/iot', '/api/solar/stats?device_id=$deviceCode&period=$period'));
-    
-    final response = await http.get(
-      uri,
-      headers: const {'Content-Type': 'application/json'},
+    final Map<String, String> params = {
+      'device_id': deviceCode,
+      'period': period,
+    };
+
+    if (period == 'day' && selectedDay != null) {
+      params['date'] =
+          "${selectedDay.year.toString().padLeft(4, '0')}-"
+          "${selectedDay.month.toString().padLeft(2, '0')}-"
+          "${selectedDay.day.toString().padLeft(2, '0')}";
+    }
+
+    if (period == 'month' && selectedMonth != null) {
+      params['month'] =
+          "${selectedMonth.year.toString().padLeft(4, '0')}-"
+          "${selectedMonth.month.toString().padLeft(2, '0')}";
+    }
+
+    if (period == 'year' && selectedYear != null) {
+      params['year'] = selectedYear.year.toString();
+    }
+
+    final uri = Uri.https(
+      'api.ezrun.in',
+      '/api/solar/stats',
+      params,
     );
+
+    final response = await http.get(uri);
     return _safeDecode(response.body);
   }
 
@@ -294,5 +320,36 @@ class ApiService {
     
     // If there's an error, throw an exception with the error message
     throw Exception(data['message'] ?? 'Failed to fetch latest solar data');
+  }
+
+  /// Fetches recent alerts for a device
+  Future<Map<String, dynamic>> getSolarAlerts({
+    required String deviceCode,
+  }) async {
+    final uri = Uri.https(
+      'api.ezrun.in',
+      '/api/solar/alerts',
+      {'device_id': deviceCode},
+    );
+
+    final response = await http.get(uri);
+    return _safeDecode(response.body);
+  }
+
+  /// Records a wash alert on the backend
+  Future<Map<String, dynamic>> recordWashAlert({
+    required String deviceCode,
+  }) async {
+    final uri = Uri.https(
+      'api.ezrun.in',
+      '/api/solar/record-wash-alert',
+    );
+
+    final response = await http.post(
+      uri,
+      headers: const {'Content-Type': 'application/json'},
+      body: jsonEncode({'device_id': deviceCode}),
+    );
+    return _safeDecode(response.body);
   }
 }

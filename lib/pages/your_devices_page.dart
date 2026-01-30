@@ -5,6 +5,7 @@ import '../services/auth_service.dart';
 import '../services/mqtt_service.dart';
 import 'device_control_page.dart';
 import 'solar_cleaner_page.dart';
+import 'wash_control_page.dart';
 
 class YourDevicesPage extends StatefulWidget {
   const YourDevicesPage({super.key});
@@ -103,11 +104,16 @@ class _YourDevicesPageState extends State<YourDevicesPage> with AutomaticKeepAli
           // Check device type based on 2nd and 3rd characters
           // xxSM... -> Shutter Motor
           // xxCS... -> Solar Cleaner
+          // xxOC... -> Solar Wash Control (New)
           bool isSolarCleaner = false;
+          bool isWashControl = false;
+          
           if (deviceCode.length >= 3) {
             final type = deviceCode.substring(1, 3).toUpperCase();
             if (type == 'CS') {
               isSolarCleaner = true;
+            } else if (type == 'OC') {
+              isWashControl = true;
             }
           }
 
@@ -119,6 +125,13 @@ class _YourDevicesPageState extends State<YourDevicesPage> with AutomaticKeepAli
               isAdmin: isAdmin,
               skipInitialLoading: fromAutoOpen,
             );
+          } else if (isWashControl) {
+            return WashControlPage(
+              deviceCode: deviceCode,
+              deviceName: deviceName,
+              deviceId: deviceId,
+              isAdmin: isAdmin,
+            ); 
           } else {
             return DeviceControlPage(
               deviceCode: deviceCode,

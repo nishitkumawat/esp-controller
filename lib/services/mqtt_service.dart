@@ -125,7 +125,7 @@ class MqttService {
     String topicPrefix = "shutter";
     if (deviceCode.length > 3) {
       final type = deviceCode.substring(1, 3).toUpperCase();
-      if (type == "CS") {
+      if (type == "CS" || type == "OC") {
         topicPrefix = "solar";
       }
     }
@@ -219,11 +219,24 @@ class MqttService {
   }
 
   Future<void> subscribe(String topic) async {
+    // If currently connecting, wait until finished
+    int waitLimit = 0;
+    while (_isConnecting && waitLimit < 50) { // Max 5s wait
+      await Future.delayed(const Duration(milliseconds: 100));
+      waitLimit++;
+    }
+
     // If disconnected, try to connect first
     if (_client == null ||
         _client!.connectionStatus?.state != MqttConnectionState.connected) {
-        // If connecting, wait or just queue? Simple await connect.
         await connect();
+        
+        // Wait again if connect() started a new connection attempt
+        waitLimit = 0;
+        while (_isConnecting && waitLimit < 50) {
+          await Future.delayed(const Duration(milliseconds: 100));
+          waitLimit++;
+        }
     }
     
     if (_client != null && _client!.connectionStatus?.state == MqttConnectionState.connected) {

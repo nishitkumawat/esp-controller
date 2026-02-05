@@ -108,7 +108,14 @@ class _YourDevicesPageState extends State<YourDevicesPage> with AutomaticKeepAli
           bool isSolarCleaner = false;
           bool isWashControl = false;
           
-          if (deviceCode.length >= 3) {
+          final String toConsider = (device['to_consider'] ?? '').toString().toUpperCase();
+          print("[YourDevicesPage] Opening device: $deviceCode, to_consider: $toConsider");
+
+          if (toConsider == 'CS') {
+            isSolarCleaner = true;
+          } else if (toConsider == 'OC') {
+            isWashControl = true;
+          } else if (deviceCode.length >= 3) {
             final type = deviceCode.substring(1, 3).toUpperCase();
             if (type == 'CS') {
               isSolarCleaner = true;
@@ -116,6 +123,8 @@ class _YourDevicesPageState extends State<YourDevicesPage> with AutomaticKeepAli
               isWashControl = true;
             }
           }
+          
+          print("[YourDevicesPage] Categorized as: isSolarCleaner=$isSolarCleaner, isWashControl=$isWashControl");
 
           if (isSolarCleaner) {
             return SolarCleanerPage(

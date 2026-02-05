@@ -10,10 +10,10 @@ class MqttServiceFactory {
 
   static dynamic getMqttService(String deviceId) {
     if (isSEDevice(deviceId)) {
-      print("[MQTT Factory] Using HiveMQ MQTT Service for regular device: $deviceId");
+      print("[MQTT Factory] Using HiveMQ MQTT Service for SE device: $deviceId");
       return HiveMqttService();
     } else {
-       print("[MQTT Factory] Using EMQX MQTT Service for SE device: $deviceId");
+       print("[MQTT Factory] Using EMQX MQTT Service for regular device: $deviceId");
       return MqttService();
     }
   }

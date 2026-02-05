@@ -131,6 +131,9 @@ class ApiService {
   Future<Map<String, dynamic>> getMyDevices({required int userId}) async =>
       _get('/my_devices/?user_id=$userId');
 
+  Future<Map<String, dynamic>> getDeviceType({required String deviceCode}) async =>
+      _get('/get_device_type/?device_code=$deviceCode');
+
   Future<Map<String, dynamic>> renameDevice({
     required int deviceId,
     required String newName,

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
+import 'api_service.dart';
 
 class MqttService {
   static final MqttService instance = MqttService._internal();
@@ -125,7 +126,20 @@ class MqttService {
     String topicPrefix = "shutter";
     if (deviceCode.length > 3) {
       final type = deviceCode.substring(1, 3).toUpperCase();
-      if (type == "CS" || type == "OC") {
+      
+      // Check if we need to consult the API for an override
+      String toConsider = type;
+      try {
+        final apiRes = await ApiService().getDeviceType(deviceCode: deviceCode);
+        if (apiRes['status'] == true && apiRes['to_consider'] != null) {
+          toConsider = apiRes['to_consider'].toString().toUpperCase();
+          print("[MQTT] Device $deviceCode override fetched: $toConsider");
+        }
+      } catch (e) {
+        print("[MQTT] Failed to fetch device override, using prefix: $e");
+      }
+
+      if (type == "CS" || type == "OC" || toConsider == "CS" || toConsider == "OC") {
         topicPrefix = "solar";
       }
     }

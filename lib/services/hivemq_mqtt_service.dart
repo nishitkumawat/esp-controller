@@ -1,5 +1,6 @@
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
+import 'api_service.dart';
 
 class HiveMqttService {
   static final HiveMqttService instance = HiveMqttService._internal();
@@ -68,7 +69,28 @@ class HiveMqttService {
         return;
       }
 
-      final topic = "shutter/$deviceCode/cmd";
+      String topicPrefix = "shutter";
+      if (deviceCode.length > 3) {
+        final type = deviceCode.substring(1, 3).toUpperCase();
+        
+        // Check if we need to consult the API for an override
+        String toConsider = type;
+        try {
+          final apiRes = await ApiService().getDeviceType(deviceCode: deviceCode);
+          if (apiRes['status'] == true && apiRes['to_consider'] != null) {
+            toConsider = apiRes['to_consider'].toString().toUpperCase();
+            print("[HiveMQ] Device $deviceCode override fetched: $toConsider");
+          }
+        } catch (e) {
+          print("[HiveMQ] Failed to fetch device override, using prefix: $e");
+        }
+
+        if (type == "CS" || type == "OC" || toConsider == "CS" || toConsider == "OC") {
+          topicPrefix = "solar";
+        }
+      }
+
+      final topic = "$topicPrefix/$deviceCode/cmd";
 
       // Send STOP first
       final stopPayload = MqttClientPayloadBuilder()..addString("STOP");

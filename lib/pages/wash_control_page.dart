@@ -7,6 +7,7 @@ import '../services/api_service.dart';
 import 'home_page.dart';
 
 class WashControlPage extends StatefulWidget {
+  static const int kAutoWashOffCode = 963852741;
   final String deviceCode;
   final String deviceName;
   final int? deviceId;
@@ -399,6 +400,51 @@ class _WashControlPageState extends State<WashControlPage> with SingleTickerProv
   static const Color kTextColor = Color(0xFF334E68); // Dark Slate
   static const Color kOfflineColor = Color(0xFFBCCCDC);
 
+  bool _isAutoWashEnabled() {
+    if (_activeConfig == null) return false;
+    final mode = _activeConfig!['mode'];
+    if (mode == 'WEEKLY') {
+      return _activeConfig!['weekly'] != null;
+    } else if (mode == 'INTERVAL') {
+      final i = _activeConfig!['interval'];
+      if (i == null) return false;
+      final hrs = i['hours'];
+      return hrs != null && hrs != WashControlPage.kAutoWashOffCode;
+    }
+    return false;
+  }
+
+  Future<void> _toggleAutoWash(bool value) async {
+    if (value) {
+      Fluttertoast.showToast(msg: "Please set schedule parameters to enable automatic wash");
+      return;
+    }
+
+    if (_isSending || !_isOnline) return;
+    setState(() => _isSending = true);
+
+    try {
+      final topic = 'solar/${widget.deviceCode}/wash/schedule/interval';
+      final payload = jsonEncode({
+        "mode": "INTERVAL",
+        "interval_hours": WashControlPage.kAutoWashOffCode,
+        "duration_sec": 60
+      });
+
+      await _mqttService.publish(topic, payload, retain: true);
+      Fluttertoast.showToast(msg: "Disabling automatic wash... ⏳");
+      
+      // Refresh config after save
+      await Future.delayed(const Duration(seconds: 1));
+      _mqttService.publish('solar/${widget.deviceCode}/wash/config/get', '');
+      
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Failed to turn off: $e");
+    } finally {
+      setState(() => _isSending = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Determine theme brightness for potential dark mode adjustments (system preference)
@@ -437,9 +483,16 @@ class _WashControlPageState extends State<WashControlPage> with SingleTickerProv
                     _buildConfigurationSection(isDark, !isOnline),
                     const SizedBox(height: 20),
 
-                    // 4. Active Config Summary
-                    if (_activeConfig != null)
-                      _buildActiveConfigSummary(isDark),
+                    // 4. Active Config Summary & Toggle
+                    if (!_isLoadingConfig) ...[
+                      if (_activeConfig != null)
+                        _buildActiveConfigSummary(isDark),
+                      
+                      const SizedBox(height: 20),
+
+                      // 5. Automatic Wash Toggle
+                      _buildAutoWashToggle(isDark),
+                    ],
                       
                     const SizedBox(height: 40), // Bottom padding
                   ],
@@ -1118,18 +1171,21 @@ class _WashControlPageState extends State<WashControlPage> with SingleTickerProv
     final cfg = _activeConfig;
     if (cfg == null) return const SizedBox.shrink();
 
-    final mode = cfg['mode'];
+    final summaryMode = cfg['mode'];
     String summary = "";
     int durationSec = 0;
+    bool isOff = !_isAutoWashEnabled();
 
-    if (mode == 'WEEKLY') {
+    if (isOff) {
+      summary = "Automatic Wash is currently OFF";
+    } else if (summaryMode == 'WEEKLY') {
       final w = cfg['weekly'];
       if (w != null) {
         final days = (w['days'] as List?)?.join(', ') ?? '';
         summary = "Scheduled weekly on $days at ${w['time']}";
         durationSec = w['duration_sec'] ?? 0;
       }
-    } else if (mode == 'INTERVAL') {
+    } else if (summaryMode == 'INTERVAL') {
       final i = cfg['interval'];
       if (i != null) {
         summary = "Scheduled every ${i['hours']} hours";
@@ -1162,11 +1218,12 @@ class _WashControlPageState extends State<WashControlPage> with SingleTickerProv
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  "$summary\nDuration: ${_formatDuration(durationSec)}",
-                  style: const TextStyle(
-                    color: kTextColor,
+                  isOff ? summary : "$summary\nDuration: ${_formatDuration(durationSec)}",
+                  style: TextStyle(
+                    color: isOff ? Colors.red.shade400 : kTextColor,
                     fontSize: 13,
                     height: 1.4,
+                    fontWeight: isOff ? FontWeight.bold : FontWeight.normal,
                   ),
                 ),
               ],
@@ -1224,6 +1281,46 @@ class _WashControlPageState extends State<WashControlPage> with SingleTickerProv
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAutoWashToggle(bool isDark) {
+    bool isEnabled = _isAutoWashEnabled();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF152A3D) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: SwitchListTile(
+        activeColor: const Color(0xFFFF9F43),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+        title: Text(
+          "Automatic Wash",
+          style: TextStyle(
+            color: isDark ? Colors.white : const Color(0xFF102A43),
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+        value: isEnabled,
+        onChanged: _isOnline ? (val) => _toggleAutoWash(val) : null,
+        secondary: CircleAvatar(
+          backgroundColor: (isEnabled ? const Color(0xFFFF9F43) : Colors.grey).withOpacity(0.1),
+          child: Icon(
+            Icons.auto_fix_high_rounded,
+            color: isEnabled ? const Color(0xFFFF9F43) : Colors.grey,
+            size: 20,
+          ),
+        ),
+      ),
     );
   }
 }

@@ -50,7 +50,7 @@ class _AddDevicePageState extends State<AddDevicePage> {
 
   void _recomputeCanSubmit() {
     final code = _deviceCodeController.text.trim();
-    final next = code.length == 16;
+    final next = code.length >= 14 && code.length <= 20;
     if (next == _canSubmit) return;
     if (!mounted) return;
     setState(() {
@@ -144,8 +144,8 @@ class _AddDevicePageState extends State<AddDevicePage> {
     if (value == null || value.trim().isEmpty) {
       return 'Please enter device code';
     }
-    if (value.trim().length != 16) {
-      return 'Device code must be 16 characters';
+    if (value.trim().length < 14 || value.trim().length > 20) {
+      return 'Device code must be between 14 and 20 characters';
     }
     return null;
   }
@@ -218,7 +218,7 @@ class _AddDevicePageState extends State<AddDevicePage> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Enter the 16-character code',
+                              'Enter the 14-20 character code',
                               style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
                             ),
                           ],
@@ -243,7 +243,7 @@ class _AddDevicePageState extends State<AddDevicePage> {
                       border: InputBorder.none,
                       counterText: '',
                     ),
-                    maxLength: 16,
+                    maxLength: 20,
                     textCapitalization: TextCapitalization.characters,
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),

@@ -15,6 +15,7 @@ class AccountPage extends StatefulWidget {
 class _AccountPageState extends State<AccountPage> {
   final ApiService _apiService = ApiService();
   final AuthService _authService = AuthService();
+  final ValueNotifier<int> _adminPageRefreshTrigger = ValueNotifier<int>(0);
   List<dynamic> _pendingRequests = [];
   List<dynamic> _adminDevices = [];
   Map<int, List<dynamic>> _deviceMembers = {};
@@ -30,8 +31,15 @@ class _AccountPageState extends State<AccountPage> {
     _loadData();
   }
 
+  @override
+  void dispose() {
+    _adminPageRefreshTrigger.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
+    _adminPageRefreshTrigger.value++;
     try {
       final userId = await _authService.getUserId();
       final phone = await _authService.getLoggedInPhone();
@@ -46,6 +54,7 @@ class _AccountPageState extends State<AccountPage> {
           _isLoading = false;
           _userName = name;
         });
+        _adminPageRefreshTrigger.value++;
         return;
       }
 
@@ -114,8 +123,10 @@ class _AccountPageState extends State<AccountPage> {
         _userName = name;
         _isLoading = false;
       });
+      _adminPageRefreshTrigger.value++;
     } catch (e) {
       setState(() => _isLoading = false);
+      _adminPageRefreshTrigger.value++;
       Fluttertoast.showToast(
         msg: 'Network Error',
         toastLength: Toast.LENGTH_SHORT,
@@ -730,25 +741,36 @@ class _AccountPageState extends State<AccountPage> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) {
-          return Scaffold(
-            backgroundColor: const Color(0xFFF5F7FA),
-            appBar: AppBar(
-              title: const Text(
-                'Device Admin',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-              backgroundColor: Colors.white,
-              elevation: 0,
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  onPressed: _loadData,
+          return ValueListenableBuilder<int>(
+            valueListenable: _adminPageRefreshTrigger,
+            builder: (context, value, child) {
+              return Scaffold(
+                backgroundColor: const Color(0xFFF5F7FA),
+                appBar: AppBar(
+                  title: const Text(
+                    'Device Admin',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  backgroundColor: Colors.white,
+                  elevation: 0,
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.refresh),
+                      onPressed: _loadData,
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            body: SafeArea(
-              child: _buildDeviceAdminBody(),
-            ),
+                body: SafeArea(
+                  child: _isLoading
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFFA500)),
+                          ),
+                        )
+                      : _buildDeviceAdminBody(),
+                ),
+              );
+            },
           );
         },
       ),

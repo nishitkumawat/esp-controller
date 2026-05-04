@@ -83,9 +83,14 @@ class MqttService {
           final recMess = c[0].payload as MqttPublishMessage;
           final pt = MqttPublishPayload.bytesToStringAsString(recMess.payload.message);
           final topic = c[0].topic;
+          final isRetained = recMess.header?.retain ?? false;
           
-          print("[MQTT] Received on $topic: $pt");
-          _updatesController.add({'topic': topic, 'message': pt});
+          print("[MQTT] Received on $topic: $pt (retained: $isRetained)");
+          _updatesController.add({
+            'topic': topic, 
+            'message': pt,
+            'retained': isRetained ? 'true' : 'false'
+          });
         });
       }
 

@@ -39,7 +39,15 @@ class _WashControlPageState extends State<WashControlPage>
   bool _timeSyncedOnce = false;
 
   // Device Status (from MQTT)
-  bool _isOnline = false; // "online" field
+  DateTime? _lastLiveMessageTime;
+
+  bool get isDeviceOnline {
+    if (_lastLiveMessageTime == null) return false;
+
+    final diff = DateTime.now().difference(_lastLiveMessageTime!).inSeconds;
+    return diff < 30;
+  }
+
   bool _isWifiConnected = false;
   bool _isMqttConnected = false; // Derived or explicit
   String _washState = 'IDLE'; // IDLE, RUNNING
@@ -47,8 +55,6 @@ class _WashControlPageState extends State<WashControlPage>
   Timer? _countdownTimer;
   StreamSubscription? _mqttSubscription;
   Timer? _statusPollTimer;
-  DateTime? _lastStatusTime;
-  Timer? _onlineCheckTimer;
 
   // Manual Wash
   final int _defaultManualDurationSec = 300; // 5 mins
@@ -106,17 +112,6 @@ class _WashControlPageState extends State<WashControlPage>
       );
     });
 
-    _onlineCheckTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (_lastStatusTime == null) return;
-
-      final diff = DateTime.now().difference(_lastStatusTime!).inSeconds;
-
-      if (diff > 25) {
-        if (_isOnline) {
-          setState(() => _isOnline = false);
-        }
-      }
-    });
   }
 
   Future<void> _initAsync() async {
@@ -132,6 +127,7 @@ class _WashControlPageState extends State<WashControlPage>
     _mqttSubscription = _mqttService.updates.listen((event) {
       final topic = event['topic'];
       final message = event['message'];
+      final isRetained = event['retained'] == 'true';
       print('📩 Received topic: $topic');
       print("📥 MQTT INCOMING");
       print("   Topic: $topic");
@@ -139,7 +135,7 @@ class _WashControlPageState extends State<WashControlPage>
       print("   ----------------------");
 
       if (topic == 'solar/${widget.deviceCode}/wash/status') {
-        _handleStatusUpdate(message);
+        _handleStatusUpdate(message, isRetained);
       } else if (topic == 'solar/${widget.deviceCode}/wash/config') {
         _handleConfigUpdate(message);
       }
@@ -196,17 +192,14 @@ class _WashControlPageState extends State<WashControlPage>
     _countdownTimer?.cancel();
     _mqttSubscription?.cancel();
     _statusPollTimer?.cancel();
-    _onlineCheckTimer?.cancel();
     super.dispose();
   }
 
-  void _handleStatusUpdate(String? message) {
+  void _handleStatusUpdate(String? message, bool isRetained) {
     if (message == null) return;
     try {
       final data = jsonDecode(message);
       // Expected: { "wifi": true, "mqtt": true, "wash_state": "IDLE"|"RUNNING", "remaining_sec": 120 }
-      
-      _lastStatusTime = DateTime.now();
 
       setState(() {
         _isLoadingStatus = false; // Data received
@@ -217,12 +210,13 @@ class _WashControlPageState extends State<WashControlPage>
             data['wash_state'] ??
             'IDLE'; // FIX: firmware sends 'wash_state', not 'state'
 
-        // Determine overall "Online" status
-        _isOnline = true;
+        if (!isRetained) {
+          _lastLiveMessageTime = DateTime.now();
+        }
 
         // Sync time whenever we get a status update (implies connection)
         // _sendTimeSync();
-        if (!_timeSyncedOnce && _isOnline) {
+        if (!_timeSyncedOnce && isDeviceOnline) {
           _sendTimeSync();
           _timeSyncedOnce = true;
         }
@@ -331,7 +325,7 @@ class _WashControlPageState extends State<WashControlPage>
 
   Future<void> _handleManualWash() async {
     print("🚨 MANUAL WASH TRIGGERED");
-    if (_isSending || !_isOnline) return;
+    if (_isSending || !isDeviceOnline) return;
     setState(() => _isSending = true);
 
     try {
@@ -364,7 +358,7 @@ class _WashControlPageState extends State<WashControlPage>
   }
 
   Future<void> _saveSchedule() async {
-    if (_isSending || !_isOnline) return;
+    if (_isSending || !isDeviceOnline) return;
     setState(() => _isSending = true);
 
     try {
@@ -481,7 +475,7 @@ class _WashControlPageState extends State<WashControlPage>
       return;
     }
 
-    if (_isSending || !_isOnline) return;
+    if (_isSending || !isDeviceOnline) return;
     setState(() => _isSending = true);
 
     try {
@@ -511,7 +505,7 @@ class _WashControlPageState extends State<WashControlPage>
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Status Logic
-    final bool isOnline = _isOnline; // Using class state
+    final bool isOnline = isDeviceOnline;
     final Color statusColor = isOnline
         ? const Color(0xFF27AE60)
         : kOfflineColor;
@@ -1465,7 +1459,7 @@ class _WashControlPageState extends State<WashControlPage>
           ),
         ),
         value: isEnabled,
-        onChanged: _isOnline ? (val) => _toggleAutoWash(val) : null,
+        onChanged: isDeviceOnline ? (val) => _toggleAutoWash(val) : null,
         secondary: CircleAvatar(
           backgroundColor: (isEnabled ? const Color(0xFFFF9F43) : Colors.grey)
               .withOpacity(0.1),

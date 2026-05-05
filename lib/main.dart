@@ -201,22 +201,12 @@ class _AuthCheckWrapperState extends State<AuthCheckWrapper> {
       return Scaffold(
         backgroundColor: Colors.white,
         body: Center(
-          child: Card(
-            elevation: 8,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: Image.asset(
-                  'assets/splash_logo.png',
-                  width: 160,
-                  height: 160,
-                  fit: BoxFit.contain,
-                ),
-              ),
+          child: AssemblyLogo(
+            child: Image.asset(
+              'assets/splash_logo.png',
+              width: 200,
+              height: 200,
+              fit: BoxFit.contain,
             ),
           ),
         ),
@@ -224,5 +214,76 @@ class _AuthCheckWrapperState extends State<AuthCheckWrapper> {
     }
 
     return _isLoggedIn ? HomePage() : const LoginPage();
+  }
+}
+
+class AssemblyLogo extends StatefulWidget {
+  final Widget child;
+  final Duration duration;
+
+  const AssemblyLogo({
+    super.key,
+    required this.child,
+    this.duration = const Duration(milliseconds: 1500),
+  });
+
+  @override
+  State<AssemblyLogo> createState() => _AssemblyLogoState();
+}
+
+class _AssemblyLogoState extends State<AssemblyLogo> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  final int _strips = 10;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: widget.duration);
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(_strips, (index) {
+            final isEven = index % 2 == 0;
+            final start = (index / _strips) * 0.4;
+            final end = start + 0.6;
+            final animation = CurvedAnimation(
+              parent: _controller,
+              curve: Interval(start, end, curve: Curves.easeOutCubic),
+            );
+            
+            final offset = isEven ? (1.0 - animation.value) * -150 : (1.0 - animation.value) * 150;
+            final opacity = animation.value.clamp(0.0, 1.0);
+
+            return Transform.translate(
+              offset: Offset(offset, 0),
+              child: Opacity(
+                opacity: opacity,
+                child: ClipRect(
+                  child: Align(
+                    alignment: Alignment(0, -1.0 + (index / (_strips - 1)) * 2.0),
+                    heightFactor: 1.0 / _strips,
+                    widthFactor: 1.0,
+                    child: widget.child,
+                  ),
+                ),
+              ),
+            );
+          }),
+        );
+      },
+    );
   }
 }

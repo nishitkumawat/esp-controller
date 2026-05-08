@@ -9,6 +9,8 @@ import '../services/api_service.dart';
 import '../widgets/weather_background.dart';
 import '../widgets/solar_house_illustration.dart';
 import '../widgets/power_circle_display.dart';
+import '../widgets/greeting_header.dart';
+import '../services/auth_service.dart';
 import 'home_page.dart';
 import 'alerts_page.dart';
 
@@ -37,6 +39,7 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
   late final dynamic _mqttService;
   final ApiService _apiService = ApiService();
   late String _deviceName;
+  String _userName = '';
   
   // Real-time Data
   bool _isSending = false;
@@ -79,6 +82,7 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
       _isFirstLoad = false;
     }
     _loadInitialData();
+    _loadUserName();
   }
 
   void _goToHomeTab(int index) {
@@ -86,6 +90,13 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
       MaterialPageRoute(builder: (_) => HomePage(initialIndex: index)),
       (route) => false,
     );
+  }
+
+  Future<void> _loadUserName() async {
+    final name = await AuthService().getLoggedInName();
+    if (mounted && name != null) {
+      setState(() => _userName = name);
+    }
   }
 
   void _openCupertinoYearPicker({
@@ -318,49 +329,6 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
                           await _confirmAndDeleteDevice();
                         },
                       ),
-                    const SizedBox(height: 20),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        "Cleaning Schedule",
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF5F7FA),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.schedule, color: Color(0xFF1E88E5)),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: TextField(
-                                controller: _timerController,
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                  border: InputBorder.none,
-                                  hintText: "Interval (hours)",
-                                ),
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.pop(context);
-                                _setTimer();
-                              },
-                              child: const Text("SET", style: TextStyle(fontWeight: FontWeight.bold)),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
                     const SizedBox(height: 30),
                   ],
                 ),
@@ -649,28 +617,85 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
       ),
       appBar: AppBar(
         titleSpacing: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Row(
           children: [
-            Text(
-              _deviceName,
-              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            // User avatar
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF9F43),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+              ),
+              child: Center(
+                child: Text(
+                  _userName.isNotEmpty ? _userName[0].toUpperCase() : 'U',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
             ),
-            Text(
-              widget.deviceCode,
-              style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _userName.isNotEmpty ? 'Hi, $_userName' : _deviceName,
+                    style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Text(
+                        _deviceName,
+                        style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 11),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        ' · ${_currentPower >= 1000 ? '${(_currentPower / 1000).toStringAsFixed(1)}kW' : '${_currentPower.toStringAsFixed(0)}W'}',
+                        style: TextStyle(color: Colors.greenAccent.withOpacity(0.9), fontSize: 11, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ],
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
+          // Temperature badge
+          if (_locationData != null && _locationData!['temperature'] != null)
+            Container(
+              margin: const EdgeInsets.only(right: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.thermostat_rounded, size: 14, color: Colors.white70),
+                  const SizedBox(width: 2),
+                  Text(
+                    '${_locationData!['temperature']}°',
+                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+            ),
           IconButton(
-            icon: const Icon(Icons.settings_outlined),
+            icon: const Icon(Icons.settings_outlined, size: 22),
             onPressed: _openSettingsSheet,
           ),
         ],
@@ -698,63 +723,49 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Date Selector (Moved up)
+                      const SizedBox(height: 4),
+
+                      // Live Metrics section header
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Row(
+                          children: [
+                            const Text(
+                              'Live Metrics',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF102A43),
+                              ),
+                            ),
+                            const Spacer(),
+                            GestureDetector(
+                              onTap: () {},
+                              child: const Text(
+                                'View all',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFFFF9F43),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Live Metrics 2-column grid
+                      _buildLiveMetricsGrid(),
+                      const SizedBox(height: 20),
+
+                      // Panel Cleaning Control Card
+                      _buildPanelCleaningCard(),
+                      const SizedBox(height: 20),
+
+                      // Date Selector
                       _buildDateSelector(),
                       const SizedBox(height: 20),
-                      
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildStatTile(
-                              title: 'Yield',
-                              primary: '${(_periodYield / 1000).toStringAsFixed(2)} kW',
-                              secondary: '', // Removed "Selected Day"
-                              icon: Icons.solar_power_outlined,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildStatTile(
-                              title: 'Avg Energy',
-                              primary: '${_avgEnergy.toStringAsFixed(1)} Wh',
-                              secondary: '',
-                              icon: Icons.bolt_outlined,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildStatTile(
-                              title: 'Saved Money',
-                              primary: '₹${_moneySaved.toStringAsFixed(2)}',
-                              secondary: '',
-                              icon: Icons.currency_rupee_rounded,
-                              iconColor: Colors.green,
-                              primaryColor: Colors.green,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildStatTile(
-                              title: 'Weather',
-                              primary: _locationData != null && _locationData!['temperature'] != null
-                                  ? '${_locationData!['temperature']}°C'
-                                  : '--',
-                              secondary: _locationData != null && _locationData!['city'] != null
-                                  ? '${_locationData!['city']}, ${_locationData!['state']}'
-                                  : 'Location',
-                              icon: Icons.cloud_outlined,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      // Controls (No timer here)
-                      _buildControlsSection(),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 4),
                       
                       // Hourly Power Chart
                       _buildGraphSection(),
@@ -778,6 +789,766 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // ─── Live Metrics Grid ───────────────────────────────────────────────────
+  Widget _buildLiveMetricsGrid() {
+    final temp = _locationData != null && _locationData!['temperature'] != null
+        ? '${_locationData!['temperature']}°C'
+        : '--';
+    final city = _locationData != null && _locationData!['city'] != null
+        ? '${_locationData!['city']}'
+        : '';
+
+    final metrics = [
+      _MetricData(
+        label: 'Solar Output',
+        value: '${(_currentPower / 1000).toStringAsFixed(2)} kW',
+        trend: '+4.2%',
+        trendUp: true,
+        icon: Icons.wb_sunny_rounded,
+        iconColor: const Color(0xFFFF9F43),
+        iconBg: const Color(0xFFFFF3E0),
+      ),
+      _MetricData(
+        label: 'Period Yield',
+        value: '${(_periodYield / 1000).toStringAsFixed(2)} kW',
+        trend: '+1.1%',
+        trendUp: true,
+        icon: Icons.battery_charging_full_rounded,
+        iconColor: const Color(0xFF27AE60),
+        iconBg: const Color(0xFFE8F5E9),
+      ),
+      _MetricData(
+        label: 'Avg Power',
+        value: '${_avgPower.toStringAsFixed(1)} W',
+        trend: '+0.8',
+        trendUp: true,
+        icon: Icons.bolt_rounded,
+        iconColor: const Color(0xFF1E88E5),
+        iconBg: const Color(0xFFE3F2FD),
+      ),
+      _MetricData(
+        label: 'Avg Energy',
+        value: '${_avgEnergy.toStringAsFixed(0)} Wh',
+        trend: '-3%',
+        trendUp: false,
+        icon: Icons.water_drop_rounded,
+        iconColor: const Color(0xFF00ACC1),
+        iconBg: const Color(0xFFE0F7FA),
+      ),
+      _MetricData(
+        label: 'Panel Temp',
+        value: temp,
+        trend: '-2°',
+        trendUp: false,
+        icon: Icons.thermostat_rounded,
+        iconColor: const Color(0xFFE53935),
+        iconBg: const Color(0xFFFFEBEE),
+      ),
+      _MetricData(
+        label: 'Money Saved',
+        value: '₹${_moneySaved.toStringAsFixed(0)}',
+        trend: '+12%',
+        trendUp: true,
+        icon: Icons.currency_rupee_rounded,
+        iconColor: const Color(0xFF43A047),
+        iconBg: const Color(0xFFE8F5E9),
+      ),
+      _MetricData(
+        label: 'Weather',
+        value: _getWeatherDescription().split(' ').first,
+        trend: city.isNotEmpty ? city : 'Local',
+        trendUp: true,
+        icon: _weatherCode <= 2
+            ? Icons.wb_sunny_rounded
+            : (_weatherCode <= 3 ? Icons.wb_cloudy_rounded : Icons.cloud_rounded),
+        iconColor: const Color(0xFF7B61FF),
+        iconBg: const Color(0xFFF3F0FF),
+        trendIsLabel: true,
+      ),
+      _MetricData(
+        label: 'Today Yield',
+        value: '${_todayYield.toStringAsFixed(0)} Wh',
+        trend: 'ready',
+        trendUp: true,
+        icon: Icons.solar_power_rounded,
+        iconColor: const Color(0xFFFF9F43),
+        iconBg: const Color(0xFFFFF3E0),
+        trendIsLabel: true,
+      ),
+    ];
+
+    final rows = <Widget>[];
+    for (int i = 0; i < metrics.length; i += 2) {
+      rows.add(
+        Row(
+          children: [
+            Expanded(child: _buildMetricCard(metrics[i])),
+            const SizedBox(width: 12),
+            Expanded(child: i + 1 < metrics.length
+                ? _buildMetricCard(metrics[i + 1])
+                : const SizedBox()),
+          ],
+        ),
+      );
+      if (i + 2 < metrics.length) rows.add(const SizedBox(height: 12));
+    }
+
+    return Column(children: rows);
+  }
+
+  Widget _buildMetricCard(_MetricData m) {
+    final trendColor = m.trendIsLabel
+        ? (m.trendUp ? const Color(0xFF27AE60) : const Color(0xFFE53935))
+        : (m.trendUp ? const Color(0xFF27AE60) : const Color(0xFFE53935));
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.black.withOpacity(0.05)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: m.iconBg,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(m.icon, color: m.iconColor, size: 20),
+              ),
+              const Spacer(),
+              Icon(
+                m.trendIsLabel
+                    ? Icons.arrow_upward_rounded
+                    : (m.trendUp ? Icons.north_east_rounded : Icons.south_east_rounded),
+                size: 13,
+                color: trendColor,
+              ),
+              const SizedBox(width: 2),
+              Text(
+                m.trend,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: trendColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            m.label,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            m.value,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF102A43),
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── Panel Cleaning Control Card ─────────────────────────────────────────
+  String _panelMode = 'Manual'; // Manual, Weekly, Interval
+  final List<String> _panelDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  final Set<int> _panelSelectedDays = {2}; // default Tuesday
+  TimeOfDay _panelStartTime = const TimeOfDay(hour: 6, minute: 30);
+  int _panelDurationMin = 12;
+
+  Widget _buildPanelCleaningCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.black.withOpacity(0.05)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'WASHING SYSTEM',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFFFF9F43),
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Panel Cleaning Control',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF102A43),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Text(
+                    'v2 ROBOT',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // Mode Tabs
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F7FA),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  _buildModeTab('Manual', Icons.power_settings_new_rounded),
+                  _buildModeTab('Weekly', Icons.calendar_month_rounded),
+                  _buildModeTab('Interval', Icons.repeat_rounded),
+                  _buildModeTab('Smart', Icons.auto_awesome_rounded, hasDot: true),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Mode content
+            if (_panelMode == 'Manual') _buildManualModeContent(),
+            if (_panelMode == 'Weekly') _buildWeeklyModeContent(),
+            if (_panelMode == 'Interval') _buildIntervalModeContent(),
+            if (_panelMode == 'Smart') _buildSmartModeContent(),
+
+            const SizedBox(height: 20),
+
+            // Save Schedule Button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _panelMode == 'Manual'
+                    ? (_isSending ? null : _sendWashCommand)
+                    : (_isSending ? null : () {
+                        Fluttertoast.showToast(
+                          msg: 'Schedule saved ✅',
+                          backgroundColor: const Color(0xFF102A43),
+                          textColor: Colors.white,
+                        );
+                      }),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF102A43),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 0,
+                ),
+                child: _isSending
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(
+                        _panelMode == 'Manual' ? 'Start Wash Now' : 'Save Schedule',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+              ),
+            ),
+
+            // Stop button only in manual mode
+            if (_panelMode == 'Manual') ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _isSending ? null : _sendStopCommand,
+                  icon: const Icon(Icons.stop_circle_outlined, size: 18),
+                  label: const Text(
+                    'Stop Wash',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFE74C3C),
+                    side: const BorderSide(color: Color(0xFFE74C3C), width: 1.5),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModeTab(String label, IconData icon, {bool hasDot = false}) {
+    final isSelected = _panelMode == label;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _panelMode = label),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    )
+                  ]
+                : [],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(
+                    icon,
+                    size: 18,
+                    color: isSelected
+                        ? const Color(0xFFFF9F43)
+                        : Colors.grey.shade500,
+                  ),
+                  if (hasDot)
+                    Positioned(
+                      top: -3,
+                      right: -5,
+                      child: Container(
+                        width: 7,
+                        height: 7,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFFF9F43),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                  color: isSelected
+                      ? const Color(0xFFFF9F43)
+                      : Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildManualModeContent() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F9FB),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E88E5).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.cleaning_services_rounded,
+                color: Color(0xFF1E88E5), size: 24),
+          ),
+          const SizedBox(width: 14),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Manual Wash',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        color: Color(0xFF102A43))),
+                SizedBox(height: 2),
+                Text('Tap the button below to start a wash immediately',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF7A8FA6))),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeeklyModeContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Repeat on',
+          style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF486581)),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: List.generate(7, (i) {
+            final isSelected = _panelSelectedDays.contains(i);
+            return GestureDetector(
+              onTap: () => setState(() {
+                if (isSelected) {
+                  _panelSelectedDays.remove(i);
+                } else {
+                  _panelSelectedDays.add(i);
+                }
+              }),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? const Color(0xFFFF9F43)
+                      : const Color(0xFFF0F4F8),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Text(
+                    _panelDays[i],
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: isSelected ? Colors.white : const Color(0xFF486581),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(child: _buildTimeField()),
+            const SizedBox(width: 12),
+            Expanded(child: _buildDurationField()),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildIntervalModeContent() {
+    final intervals = ['6 hrs', '12 hrs', '24 hrs', '48 hrs'];
+    String _selectedInterval = '24 hrs';
+    return StatefulBuilder(builder: (ctx, setSt) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Run every',
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF486581))),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: intervals.map((iv) {
+              final sel = _selectedInterval == iv;
+              return GestureDetector(
+                onTap: () => setSt(() => _selectedInterval = iv),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  decoration: BoxDecoration(
+                    color:
+                        sel ? const Color(0xFFFF9F43) : const Color(0xFFF0F4F8),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Text(
+                    iv,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: sel ? Colors.white : const Color(0xFF486581),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 16),
+          _buildDurationField(),
+        ],
+      );
+    });
+  }
+
+  bool _smartModeEnabled = false;
+
+  Widget _buildSmartModeContent() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _smartModeEnabled ? const Color(0xFFFFF3E0) : const Color(0xFFF8F9FB),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: _smartModeEnabled
+              ? const Color(0xFFFF9F43).withOpacity(0.4)
+              : Colors.black.withOpacity(0.05),
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: _smartModeEnabled
+                      ? const Color(0xFFFF9F43).withOpacity(0.15)
+                      : Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.auto_awesome_rounded,
+                    color: _smartModeEnabled
+                        ? const Color(0xFFFF9F43)
+                        : Colors.grey.shade500,
+                    size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Smart Mode',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                            color: Color(0xFF102A43))),
+                    const SizedBox(height: 2),
+                    Text(
+                      _smartModeEnabled
+                          ? 'Auto-scheduling based on weather & dust'
+                          : 'Enable AI-powered auto-scheduling',
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF7A8FA6)),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: _smartModeEnabled,
+                onChanged: (v) => setState(() => _smartModeEnabled = v),
+                activeColor: const Color(0xFFFF9F43),
+              ),
+            ],
+          ),
+          if (_smartModeEnabled) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFF7A8FA6)),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Robot will clean panels when dust accumulates beyond threshold',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF7A8FA6)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimeField() {
+    final hour = _panelStartTime.hourOfPeriod == 0 ? 12 : _panelStartTime.hourOfPeriod;
+    final minute = _panelStartTime.minute.toString().padLeft(2, '0');
+    final period = _panelStartTime.period == DayPeriod.am ? 'AM' : 'PM';
+
+    return GestureDetector(
+      onTap: () async {
+        final picked = await showTimePicker(
+          context: context,
+          initialTime: _panelStartTime,
+        );
+        if (picked != null) setState(() => _panelStartTime = picked);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF5F7FA),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.black.withOpacity(0.06)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Start time',
+                style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500)),
+            const SizedBox(height: 4),
+            Text(
+              '$hour:$minute $period',
+              style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF102A43)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDurationField() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F7FA),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.black.withOpacity(0.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Duration',
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w500)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF102A43),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '$_panelDurationMin min',
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: const Color(0xFFFF9F43),
+              inactiveTrackColor: const Color(0xFFE0E5EC),
+              thumbColor: const Color(0xFFFF9F43),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+              trackHeight: 5,
+              overlayColor: const Color(0xFFFF9F43).withOpacity(0.15),
+            ),
+            child: Slider(
+              value: _panelDurationMin.toDouble(),
+              min: 1,
+              max: 30,
+              divisions: 29,
+              onChanged: (v) => setState(() => _panelDurationMin = v.round()),
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('1 min', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+              Text('30 min', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -888,122 +1659,70 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
   Widget _buildWeatherHeroSection() {
     final hour = DateTime.now().hour;
     final isNight = hour < 6 || hour >= 19;
-    final textColor = isNight ? Colors.white : Colors.black; // Forced black for day
-    final subtextColor = isNight ? Colors.white70 : Colors.black54;
+    final textColor = isNight ? Colors.white : Colors.white;
+    final subtextColor = isNight ? Colors.white70 : Colors.white70;
     
     return SizedBox(
-      height: 650, // Increased height to prevent overlap
+      height: 420,
       child: Stack(
         children: [
-          // Production Today - top-left
-          Positioned(
-            top: 110,
-            left: 16,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Production Today",
-                  style: TextStyle(color: subtextColor, fontSize: 11, fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  "${_todayYield.toStringAsFixed(1)} Wh",
-                  style: TextStyle(
-                    color: textColor,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
           // Weather Description badge - top-right
           Positioned(
             top: 110,
             right: 16,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withOpacity(0.3)),
+                border: Border.all(color: Colors.white.withOpacity(0.2)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    _weatherCode <= 2 ? Icons.wb_sunny : (_weatherCode <= 3 ? Icons.wb_cloudy : Icons.cloud),
-                    size: 16,
+                    _weatherCode <= 2 ? Icons.wb_sunny_rounded : (_weatherCode <= 3 ? Icons.wb_cloudy : Icons.cloud),
+                    size: 14,
                     color: Colors.white,
                   ),
                   const SizedBox(width: 4),
                   Text(
                     _getWeatherDescription(),
-                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
                   ),
                 ],
               ),
             ),
           ),
 
-          // Location badge - below production
+          // Production Today badge - top-left
           Positioned(
-            top: 155,
+            top: 110,
             left: 16,
-            child: (_locationData != null && _locationData!['city'] != "Unknown")
-              ? Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withOpacity(0.3)),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white.withOpacity(0.2)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.bolt_rounded, size: 14, color: Colors.greenAccent),
+                  const SizedBox(width: 4),
+                  Text(
+                    "${_todayYield.toStringAsFixed(0)} Wh today",
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.location_on, size: 14, color: Colors.white),
-                      const SizedBox(width: 4),
-                      Text(
-                        "${_locationData!['city']}, ${_locationData!['state']}",
-                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
-                      ),
-                    ],
-                  ),
-                )
-              : const SizedBox.shrink(),
-          ),
-
-          // Temperature badge - top-right below weather
-          if (_locationData != null && _locationData!['temperature'] != null)
-            Positioned(
-              top: 155,
-              right: 16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.25),
-                  borderRadius: BorderRadius.circular(25),
-                  border: Border.all(color: Colors.white.withOpacity(0.4), width: 2),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.thermostat, size: 18, color: Colors.white),
-                    const SizedBox(width: 6),
-                    Text(
-                      "${_locationData!['temperature']}°C",
-                      style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
+                ],
               ),
             ),
+          ),
 
           // Power Circle in Center
           Positioned(
-            top: 220,
+            top: 150,
             left: 0,
             right: 0,
             child: PowerCircleDisplay(
@@ -1948,4 +2667,26 @@ class _SolarCleanerPageState extends State<SolarCleanerPage>
       ],
     );
   }
+}
+
+class _MetricData {
+  final String label;
+  final String value;
+  final String trend;
+  final bool trendUp;
+  final IconData icon;
+  final Color iconColor;
+  final Color iconBg;
+  final bool trendIsLabel;
+
+  const _MetricData({
+    required this.label,
+    required this.value,
+    required this.trend,
+    required this.trendUp,
+    required this.icon,
+    required this.iconColor,
+    required this.iconBg,
+    this.trendIsLabel = false,
+  });
 }

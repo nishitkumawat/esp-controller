@@ -4,10 +4,61 @@ import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import '../services/mqtt_service_factory.dart';
 import '../services/api_service.dart';
+import '../widgets/greeting_header.dart';
+import '../widgets/map_location_picker.dart';
+import 'package:latlong2/latlong.dart';
+import '../services/notification_service.dart';
+import '../services/rain_skip_service.dart';
 import 'home_page.dart';
+import 'notifications_page.dart';
 
 class WashControlPage extends StatefulWidget {
   static const int kAutoWashOffCode = 963852741;
+  static const Set<String> kRainSkipHiddenDeviceCodes = {
+    'OSML26BO7RNTPFS232',
+    'OSM1231231231234',
+    'OSML26BO7RNTPFS230',
+    'OSML26BO7RNTPFS231',
+    'OSML26BO7RNTPFS226',
+    'OSML26BO7RNTPFS223',
+    'OSML26BO7RNTPFS224',
+    'OSML26BO7RNTPFS225',
+    'OSML26BO7RNTPFS222',
+    'OSML26BO7RNTPFS221',
+    'OSML26BO7RNTPFS220',
+    'OSML26BO7RNTPFS219',
+    'OSML26BO7RNTPFS218',
+    'OSML26BO7RNTPFS217',
+    'OSML26BO7RNTPFS216',
+    'OSML26BO7RNTPFS215',
+    'OSML26BO7RNTPFS214',
+    'OSML26BO7RNTPFS213',
+    'OSML26BO7RNTPFS212',
+    'OSML26BO7RNTPFS211',
+    'OSML26BO7RNTPFS210',
+    'OSML26BO7RNTPFS209',
+    'OSML26BO7RNTPFS208',
+    'OSML26BO7RNTPFS207',
+    'OSML26BO7RNTPFS206',
+    'OSML26BO7RNTPFS205',
+    'OSML26BO7RNTPFS204',
+    'OSML26BO7RNTPFS203',
+    'OSML26BO7RNTPFS202',
+    'OSML26BO7RNTPFS201',
+    'OSML26BO7RNTPFS200',
+    'OSML26BO7RNTPFS188',
+    'OSML26BO7RNTPFS189',
+    'OSML26BO7RNTPFS190',
+    'OSML26BO7RNTPFS191',
+    'OSML26BO7RNTPFS192',
+    'OSML26BO7RNTPFS193',
+    'OSML26BO7RNTPFS194',
+    'OSML26BO7RNTPFS195',
+    'OSML26BO7RNTPFS196',
+    'OSML26BO7RNTPFS197',
+    'OSML26BO7RNTPFS198',
+    'OSML26BO7RNTPFS199',
+  };
   final String deviceCode;
   final String deviceName;
   final int? deviceId;
@@ -55,6 +106,17 @@ class _WashControlPageState extends State<WashControlPage>
   Timer? _countdownTimer;
   StreamSubscription? _mqttSubscription;
   Timer? _statusPollTimer;
+
+  // Notifications
+  final NotificationService _notifSvc = NotificationService();
+  int _unreadCount = 0;
+  OverlayEntry? _popupEntry;
+
+  // Rain Smart Skip
+  bool _rainSkipEnabled = false;
+  double _rainLat = 0.0;
+  double _rainLon = 0.0;
+  final int _rainThreshold = 3;
 
   // Manual Wash
   final int _defaultManualDurationSec = 300; // 5 mins
@@ -104,6 +166,7 @@ class _WashControlPageState extends State<WashControlPage>
     _controller.forward();
 
     _initAsync();
+    _initNotificationsAndRain();
 
     _statusPollTimer = Timer.periodic(const Duration(seconds: 12), (_) {
       _mqttService.publish(
@@ -138,6 +201,8 @@ class _WashControlPageState extends State<WashControlPage>
         _handleStatusUpdate(message, isRetained);
       } else if (topic == 'solar/${widget.deviceCode}/wash/config') {
         _handleConfigUpdate(message);
+      } else if (topic == 'solar/${widget.deviceCode}/events') {
+        _handleEventMessage(message);
       }
     });
 
@@ -145,6 +210,7 @@ class _WashControlPageState extends State<WashControlPage>
     // We await this to ensure subscriptions are active before requesting data
     await _mqttService.subscribe('solar/${widget.deviceCode}/wash/status');
     await _mqttService.subscribe('solar/${widget.deviceCode}/wash/config');
+    await _mqttService.subscribe('solar/${widget.deviceCode}/events');
   }
 
   Future<void> _requestInitialData() async {
@@ -192,6 +258,7 @@ class _WashControlPageState extends State<WashControlPage>
     _countdownTimer?.cancel();
     _mqttSubscription?.cancel();
     _statusPollTimer?.cancel();
+    _popupEntry?.remove();
     super.dispose();
   }
 
@@ -453,6 +520,9 @@ class _WashControlPageState extends State<WashControlPage>
   static const Color kTextColor = Color(0xFF334E68); // Dark Slate
   static const Color kOfflineColor = Color(0xFFBCCCDC);
 
+  bool get _showAutowashSkipSection =>
+      !WashControlPage.kRainSkipHiddenDeviceCodes.contains(widget.deviceCode);
+
   bool _isAutoWashEnabled() {
     if (_activeConfig == null) return false;
     final mode = _activeConfig!['mode'];
@@ -540,6 +610,12 @@ class _WashControlPageState extends State<WashControlPage>
 
                     // 3. Wash Configuration
                     _buildConfigurationSection(isDark, !isOnline),
+
+                    if (_showAutowashSkipSection && !_isLoadingConfig) ...[
+                      const SizedBox(height: 20),
+                      _buildAutowashSkipCard(isDark, !isOnline),
+                    ],
+
                     const SizedBox(height: 20),
 
                     // 4. Active Config Summary & Toggle
@@ -649,6 +725,7 @@ class _WashControlPageState extends State<WashControlPage>
               ],
             ),
           ),
+          _buildNotificationBell(isDark),
           IconButton(
             icon: Icon(
               Icons.refresh,
@@ -882,126 +959,142 @@ class _WashControlPageState extends State<WashControlPage>
   }
 
   Widget _buildConfigurationSection(bool isDark, bool isDisabled) {
-    return IgnorePointer(
-      ignoring: isDisabled,
-      child: Opacity(
-        opacity: isDisabled ? 0.6 : 1.0,
-        child: Container(
-          padding: const EdgeInsets.all(
-            16,
-          ), // Reduced padding to prevent overflow
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF152A3D) : kCardColor,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
-                blurRadius: 20,
-                offset: const Offset(0, 4),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF152A3D) : kCardColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.tune, color: kAccentColor, size: 20),
+              const SizedBox(width: 10),
+              Text(
+                "Configuration",
+                style: TextStyle(
+                  color: isDark ? Colors.white : kPrimaryColor,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.tune, color: kAccentColor, size: 20),
-                  const SizedBox(width: 10),
-                  Text(
-                    "Configuration",
-                    style: TextStyle(
-                      color: isDark ? Colors.white : kPrimaryColor,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
+          const SizedBox(height: 24),
 
-              // Show skeleton loading while fetching config
-              if (_isLoadingConfig) ...[
-                _buildSkeletonLoader(isDark),
-              ] else ...[
-                // Custom Tab/Segment Selector
-                Container(
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.black26 : const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.all(4),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _buildTabButton(
-                          "Weekly",
-                          _selectedMode == 'WEEKLY',
-                          isDark,
-                        ),
-                      ),
-                      Expanded(
-                        child: _buildTabButton(
-                          "Interval",
-                          _selectedMode == 'INTERVAL',
-                          isDark,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                AnimatedCrossFade(
-                  firstChild: _buildWeeklyContent(isDark),
-                  secondChild: _buildIntervalContent(isDark),
-                  crossFadeState: _selectedMode == 'WEEKLY'
-                      ? CrossFadeState.showFirst
-                      : CrossFadeState.showSecond,
-                  duration: const Duration(milliseconds: 300),
-                ),
-
-                const SizedBox(height: 30),
-
-                // Save Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _saveSchedule,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: kPrimaryColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 18),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
+          if (_isLoadingConfig) ...[
+            _buildSkeletonLoader(isDark),
+          ] else ...[
+            IgnorePointer(
+              ignoring: isDisabled,
+              child: Opacity(
+                opacity: isDisabled ? 0.6 : 1.0,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.black26 : const Color(0xFFF1F5F9),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                    ),
-                    child: _isSending
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text(
-                            "SAVE & SYNC",
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.0,
+                      padding: const EdgeInsets.all(4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _buildTabButton(
+                              "Weekly",
+                              _selectedMode == 'WEEKLY',
+                              isDark,
                             ),
                           ),
+                          Expanded(
+                            child: _buildTabButton(
+                              "Interval",
+                              _selectedMode == 'INTERVAL',
+                              isDark,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    AnimatedCrossFade(
+                      firstChild: _buildWeeklyContent(isDark),
+                      secondChild: _buildIntervalContent(isDark),
+                      crossFadeState: _selectedMode == 'WEEKLY'
+                          ? CrossFadeState.showFirst
+                          : CrossFadeState.showSecond,
+                      duration: const Duration(milliseconds: 300),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: isDisabled ? null : _saveSchedule,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kPrimaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-              ],
-            ],
-          ),
-        ),
+                child: _isSending
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        "SAVE & SYNC",
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        ],
       ),
+    );
+  }
+
+  Widget _buildAutowashSkipCard(bool isDark, bool isDeviceOffline) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF152A3D) : kCardColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: _buildAutowashSkipSection(isDark, isDeviceOffline),
     );
   }
 
@@ -1215,7 +1308,7 @@ class _WashControlPageState extends State<WashControlPage>
         if (_selectedIntervalLabel == 'Custom') ...[
           const SizedBox(height: 16),
           TextFormField(
-            initialValue: _customIntervalHours.toString(),
+            initialValue: _customIntervalHours == WashControlPage.kAutoWashOffCode ? '------' : _customIntervalHours.toString(),
             keyboardType: TextInputType.number,
             style: TextStyle(color: isDark ? Colors.white : Colors.black),
             decoration: InputDecoration(
@@ -1472,4 +1565,471 @@ class _WashControlPageState extends State<WashControlPage>
       ),
     );
   }
+
+  // ─────────────────── NOTIFICATIONS & RAIN SMART SKIP ───────────────────
+
+  Future<void> _initNotificationsAndRain() async {
+    await _notifSvc.loadNotifications();
+    final settings = await RainSkipService().load(widget.deviceCode);
+    if (!mounted) return;
+    setState(() {
+      _unreadCount = _notifSvc.unreadCount;
+      _rainSkipEnabled = settings.enabled;
+      _rainLat = settings.lat;
+      _rainLon = settings.lon;
+    });
+  }
+
+  void _handleEventMessage(String? message) async {
+    if (message == null) return;
+    try {
+      final data = jsonDecode(message) as Map<String, dynamic>;
+      final notif = await _notifSvc.handleMqttEvent(data);
+      if (notif != null && mounted) {
+        setState(() => _unreadCount = _notifSvc.unreadCount);
+        _showPopupNotification(notif);
+      }
+    } catch (e) {
+      print('Event parse error: $e');
+    }
+  }
+
+  void _showPopupNotification(AppNotification notif) {
+    _popupEntry?.remove();
+    _popupEntry = OverlayEntry(
+      builder: (_) => _NotifBanner(
+        notification: notif,
+        onDismiss: () { _popupEntry?.remove(); _popupEntry = null; },
+      ),
+    );
+    if (mounted) {
+      Overlay.of(context).insert(_popupEntry!);
+      Future.delayed(const Duration(seconds: 4), () {
+        _popupEntry?.remove();
+        _popupEntry = null;
+      });
+    }
+  }
+
+  Future<void> _sendRainConfig() async {
+    try {
+      final topic = 'solar/${widget.deviceCode}/weather/config';
+      final payload = _rainSkipEnabled
+          ? jsonEncode({'rain_mode': true, 'lat': _rainLat, 'lon': _rainLon, 'threshold': _rainThreshold})
+          : jsonEncode({'rain_mode': false});
+      await _mqttService.publish(topic, payload, retain: true);
+    } catch (e) {
+      print('Rain config send error: $e');
+    }
+  }
+
+  Future<void> _showLocationModal() async {
+    final selectedLocation = await Navigator.push<LatLng>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(
+            title: const Text('Select Installation Location', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            backgroundColor: const Color(0xFF102A43),
+            foregroundColor: Colors.white,
+          ),
+          body: MapLocationPicker(
+            initialLat: _rainLat,
+            initialLon: _rainLon,
+            onLocationSelected: (location) {
+              Navigator.pop(context, location);
+            },
+          ),
+        ),
+      ),
+    );
+
+    if (selectedLocation != null) {
+      setState(() {
+        _rainLat = selectedLocation.latitude;
+        _rainLon = selectedLocation.longitude;
+        _rainSkipEnabled = true;
+      });
+      await RainSkipService().save(
+        widget.deviceCode,
+        RainSkipSettings(
+            enabled: true,
+            lat: _rainLat,
+            lon: _rainLon,
+            threshold: _rainThreshold),
+      );
+      await _sendRainConfig();
+      final notif = await _notifSvc.addNotification(
+        type: NotificationType.rainSmartSkipEnabled,
+        title: 'Rain Smart Skip Enabled',
+        description: 'Monitoring rain at (${_rainLat.toStringAsFixed(4)}, ${_rainLon.toStringAsFixed(4)})',
+      );
+      if (mounted) {
+        setState(() => _unreadCount = _notifSvc.unreadCount);
+        _showPopupNotification(notif);
+      }
+    } else if (mounted) {
+      final settings = await RainSkipService().load(widget.deviceCode);
+      setState(() {
+        _rainSkipEnabled = settings.enabled;
+        _rainLat = settings.lat;
+        _rainLon = settings.lon;
+      });
+    }
+  }
+
+  Widget _coordField(String label, TextEditingController ctrl, String hint, ValueChanged<String> onChange) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold,
+          letterSpacing: 1.2, color: Colors.grey)),
+      const SizedBox(height: 6),
+      TextField(
+        controller: ctrl,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+        decoration: InputDecoration(
+          hintText: hint, hintStyle: const TextStyle(color: Colors.grey),
+          filled: true, fillColor: const Color(0xFFF0F4F8),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        ),
+        onChanged: onChange,
+      ),
+    ]);
+  }
+
+  Future<void> _setRainSkipEnabled(bool enabled) async {
+    if (enabled) {
+      await _showLocationModal();
+      return;
+    }
+
+    setState(() => _rainSkipEnabled = false);
+    await RainSkipService().save(
+      widget.deviceCode,
+      RainSkipSettings(
+        enabled: false,
+        lat: _rainLat,
+        lon: _rainLon,
+        threshold: _rainThreshold,
+      ),
+    );
+    await _sendRainConfig();
+    if (mounted) {
+      Fluttertoast.showToast(msg: 'Autowash skip disabled');
+    }
+  }
+
+  Widget _buildAutowashSkipSection(bool isDark, bool isDeviceOffline) {
+    final bool isEnabled = _rainSkipEnabled;
+    final bool canInteract = !isDeviceOffline && !_isSending;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      decoration: BoxDecoration(
+        gradient: isEnabled
+            ? const LinearGradient(
+                colors: [Color(0xFF3498DB), Color(0xFF2980B9)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : null,
+        color: isEnabled
+            ? null
+            : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC)),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isEnabled
+              ? Colors.transparent
+              : (isDark ? Colors.white12 : Colors.grey.shade300),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isEnabled
+                        ? Colors.white.withOpacity(0.2)
+                        : (isDark ? Colors.white12 : const Color(0xFFE8F4FC)),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.umbrella_rounded,
+                    color: isEnabled
+                        ? Colors.white
+                        : (isDark ? Colors.white54 : const Color(0xFF3498DB)),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Autowash skip',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.3,
+                          color: isEnabled
+                              ? Colors.white
+                              : (isDark ? Colors.white : kPrimaryColor),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Rain Detected the wash skip',
+                        style: TextStyle(
+                          fontSize: 11,
+                          height: 1.3,
+                          color: isEnabled
+                              ? Colors.white70
+                              : (isDark
+                                  ? Colors.white54
+                                  : kTextColor.withOpacity(0.65)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: isEnabled,
+                  activeColor: Colors.white,
+                  activeTrackColor: Colors.white.withOpacity(0.45),
+                  inactiveThumbColor:
+                      isDark ? Colors.grey.shade400 : Colors.grey.shade500,
+                  inactiveTrackColor:
+                      isDark ? Colors.white12 : Colors.grey.shade300,
+                  onChanged: canInteract
+                      ? (val) => _setRainSkipEnabled(val)
+                      : null,
+                ),
+              ],
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              child: isEnabled
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Column(
+                        children: [
+                          Divider(
+                            height: 1,
+                            color: Colors.white.withOpacity(0.25),
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.water_drop,
+                                size: 14,
+                                color: Colors.white.withOpacity(0.85),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  'Threshold: ≥${_rainThreshold}mm • ${_rainLat.toStringAsFixed(2)}, ${_rainLon.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.white.withOpacity(0.85),
+                                  ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: canInteract ? _showLocationModal : null,
+                                style: TextButton.styleFrom(
+                                  backgroundColor: Colors.white.withOpacity(0.18),
+                                  foregroundColor: Colors.white,
+                                  minimumSize: Size.zero,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Edit location',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            if (isDeviceOffline)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Device offline — enable when connected',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: isEnabled
+                        ? Colors.white60
+                        : (isDark ? Colors.white38 : Colors.grey.shade600),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotificationBell(bool isDark) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IconButton(
+          icon: Icon(Icons.notifications_outlined,
+              color: isDark ? Colors.white70 : kTextColor),
+          onPressed: () async {
+            await Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const NotificationsPage()));
+            if (mounted) setState(() => _unreadCount = _notifSvc.unreadCount);
+          },
+        ),
+        if (_unreadCount > 0)
+          Positioned(
+            right: 6, top: 6,
+            child: Container(
+              width: 18, height: 18,
+              decoration: const BoxDecoration(
+                  color: Color(0xFFE74C3C), shape: BoxShape.circle),
+              child: Center(
+                child: Text(
+                  _unreadCount > 9 ? '9+' : '$_unreadCount',
+                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 }
+
+// ─────────────────── POPUP NOTIFICATION BANNER ───────────────────
+
+class _NotifBanner extends StatefulWidget {
+  final AppNotification notification;
+  final VoidCallback onDismiss;
+  const _NotifBanner({required this.notification, required this.onDismiss});
+
+  @override
+  State<_NotifBanner> createState() => _NotifBannerState();
+}
+
+class _NotifBannerState extends State<_NotifBanner>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<Offset> _slideAnim;
+  late Animation<double> _fadeAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 350));
+    _slideAnim = Tween<Offset>(begin: const Offset(0, -1.2), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    _fadeAnim = CurvedAnimation(parent: _ctrl, curve: Curves.easeIn);
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Color _colorFor(NotificationType type) {
+    switch (type) {
+      case NotificationType.washStarted: return const Color(0xFF3498DB);
+      case NotificationType.washCompleted: return const Color(0xFF27AE60);
+      case NotificationType.washSkippedRain: return const Color(0xFF9B59B6);
+      case NotificationType.deviceOffline: return const Color(0xFFE74C3C);
+      case NotificationType.rainSmartSkipEnabled: return const Color(0xFFFF9F43);
+    }
+  }
+
+  IconData _iconFor(NotificationType type) {
+    switch (type) {
+      case NotificationType.washStarted: return Icons.water_drop_rounded;
+      case NotificationType.washCompleted: return Icons.check_circle_rounded;
+      case NotificationType.washSkippedRain: return Icons.cloud_rounded;
+      case NotificationType.deviceOffline: return Icons.signal_wifi_off_rounded;
+      case NotificationType.rainSmartSkipEnabled: return Icons.umbrella_rounded;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _colorFor(widget.notification.type);
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 8,
+      left: 16, right: 16,
+      child: SlideTransition(
+        position: _slideAnim,
+        child: FadeTransition(
+          opacity: _fadeAnim,
+          child: GestureDetector(
+            onTap: widget.onDismiss,
+            child: Material(
+              elevation: 12,
+              shadowColor: Colors.black38,
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+                ),
+                child: Row(children: [
+                  Container(
+                    width: 42, height: 42,
+                    decoration: BoxDecoration(
+                        color: color.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(12)),
+                    child: Icon(_iconFor(widget.notification.type), color: color, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(widget.notification.title,
+                          style: const TextStyle(fontWeight: FontWeight.w700,
+                              fontSize: 13, color: Color(0xFF102A43))),
+                      const SizedBox(height: 2),
+                      Text(widget.notification.description,
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          maxLines: 2, overflow: TextOverflow.ellipsis),
+                    ],
+                  )),
+                  const Icon(Icons.close, size: 16, color: Colors.grey),
+                ]),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+

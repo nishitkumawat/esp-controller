@@ -3,9 +3,13 @@ import 'package:fluttertoast/fluttertoast.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/mqtt_service.dart';
+import '../services/notification_service.dart';
 import 'device_control_page.dart';
+import 'notifications_page.dart';
 import 'solar_cleaner_page.dart';
 import 'wash_control_page.dart';
+import 'multi_station_page.dart';
+import 'cleaning_robot_page.dart';
 
 class YourDevicesPage extends StatefulWidget {
   const YourDevicesPage({super.key});
@@ -18,15 +22,23 @@ class _YourDevicesPageState extends State<YourDevicesPage> with AutomaticKeepAli
   final ApiService _apiService = ApiService();
   final AuthService _authService = AuthService();
   final MqttService _mqttService = MqttService();
+  final NotificationService _notifSvc = NotificationService();
   List<dynamic> _devices = [];
   bool _isLoading = true;
   int? _userId;
   bool _autoOpenedSingleDevice = false;
+  int _unreadCount = 0;
 
   @override
   void initState() {
     super.initState();
     _loadDevices();
+    _loadUnreadCount();
+  }
+
+  Future<void> _loadUnreadCount() async {
+    await _notifSvc.loadNotifications();
+    if (mounted) setState(() => _unreadCount = _notifSvc.unreadCount);
   }
 
   @override
@@ -104,9 +116,12 @@ class _YourDevicesPageState extends State<YourDevicesPage> with AutomaticKeepAli
           // Check device type based on 2nd and 3rd characters
           // xxSM... -> Shutter Motor
           // xxCS... -> Solar Cleaner
-          // xxOC... -> Solar Wash Control (New)
+          // xxOC... -> Solar Wash Control
+          // xxMS... -> Multi-Station Control
           bool isSolarCleaner = false;
           bool isWashControl = false;
+          bool isMultiStation = false;
+          bool isCleaningRobot = false;
           
           final String toConsider = (device['to_consider'] ?? '').toString().toUpperCase();
           print("[YourDevicesPage] Opening device: $deviceCode, to_consider: $toConsider");
@@ -115,16 +130,24 @@ class _YourDevicesPageState extends State<YourDevicesPage> with AutomaticKeepAli
             isSolarCleaner = true;
           } else if (toConsider == 'OC') {
             isWashControl = true;
+          } else if (toConsider == 'MS') {
+            isMultiStation = true;
+          } else if (toConsider == 'AA') {
+            isCleaningRobot = true;
           } else if (deviceCode.length >= 3) {
             final type = deviceCode.substring(1, 3).toUpperCase();
             if (type == 'CS') {
               isSolarCleaner = true;
             } else if (type == 'OC') {
               isWashControl = true;
+            } else if (type == 'MS') {
+              isMultiStation = true;
+            } else if (type == 'AA') {
+              isCleaningRobot = true;
             }
           }
           
-          print("[YourDevicesPage] Categorized as: isSolarCleaner=$isSolarCleaner, isWashControl=$isWashControl");
+          print("[YourDevicesPage] Categorized as: isSolarCleaner=$isSolarCleaner, isWashControl=$isWashControl, isMultiStation=$isMultiStation, isCleaningRobot=$isCleaningRobot");
 
           if (isSolarCleaner) {
             return SolarCleanerPage(
@@ -140,7 +163,21 @@ class _YourDevicesPageState extends State<YourDevicesPage> with AutomaticKeepAli
               deviceName: deviceName,
               deviceId: deviceId,
               isAdmin: isAdmin,
-            ); 
+            );
+          } else if (isMultiStation) {
+            return MultiStationPage(
+              deviceCode: deviceCode,
+              deviceName: deviceName,
+              deviceId: deviceId,
+              isAdmin: isAdmin,
+            );
+          } else if (isCleaningRobot) {
+            return CleaningRobotPage(
+              deviceCode: deviceCode,
+              deviceName: deviceName,
+              deviceId: deviceId,
+              isAdmin: isAdmin,
+            );
           } else {
             return DeviceControlPage(
               deviceCode: deviceCode,
@@ -172,6 +209,32 @@ class _YourDevicesPageState extends State<YourDevicesPage> with AutomaticKeepAli
         backgroundColor: Colors.white,
         elevation: 0,
         actions: [
+          // Notification Bell
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined, color: Color(0xFF2C3E50)),
+                onPressed: () async {
+                  await Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const NotificationsPage()));
+                  _loadUnreadCount();
+                },
+              ),
+              if (_unreadCount > 0)
+                Positioned(
+                  right: 6, top: 6,
+                  child: Container(
+                    width: 18, height: 18,
+                    decoration: const BoxDecoration(color: Color(0xFFE74C3C), shape: BoxShape.circle),
+                    child: Center(child: Text(
+                      _unreadCount > 9 ? '9+' : '$_unreadCount',
+                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                    )),
+                  ),
+                ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadDevices,

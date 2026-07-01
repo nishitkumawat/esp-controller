@@ -9,10 +9,10 @@ import 'home_page.dart';
 // ============================================================
 //  CleaningRobotPage — for devices where deviceCode[1..2] == 'AA'
 //  MQTT topics (match ESP8266 firmware):
-//    Publish:  robot/start          → "START_CYCLE"
-//    Publish:  robot/stop           → "STOP"
-//    Publish:  robot/status/request → "STATUS"
-//    Subscribe: robot/status        → state string
+//    Publish:  robot/<device_id>/start          → "START_CYCLE"
+//    Publish:  robot/<device_id>/stop           → "STOP"
+//    Publish:  robot/<device_id>/status/request → "STATUS"
+//    Subscribe: robot/<device_id>/status        → state string
 // ============================================================
 
 class CleaningRobotPage extends StatefulWidget {
@@ -41,11 +41,11 @@ class _CleaningRobotPageState extends State<CleaningRobotPage>
   static const String _user     = 'nk';
   static const String _pass     = '9898434411';
 
-  // Topics (fixed per firmware)
-  static const String _topicStart     = 'robot/start';
-  static const String _topicStop      = 'robot/stop';
-  static const String _topicStatusReq = 'robot/status/request';
-  static const String _topicStatus    = 'robot/status';
+  // Topics (match updated firmware)
+  String get _topicStart     => 'robot/${widget.deviceCode}/start';
+  String get _topicStop      => 'robot/${widget.deviceCode}/stop';
+  String get _topicStatusReq => 'robot/${widget.deviceCode}/status/request';
+  String get _topicStatus    => 'robot/${widget.deviceCode}/status';
 
   MqttServerClient? _client;
   bool _mqttConnected  = false;
@@ -55,7 +55,9 @@ class _CleaningRobotPageState extends State<CleaningRobotPage>
   String  _robotStatus = 'UNKNOWN';   // last value from robot/status
   bool    _isSending   = false;
   Timer?  _statusTimeoutTimer;        // if no message → offline
+  Timer?  _statusPollTimer;           // poll status periodically
   Timer?  _reconnectTimer;
+  StreamSubscription? _mqttSubscription; // manage stream subscription
   bool    _isOnline    = false;       // robot considered online
 
   // ── Animation ─────────────────────────────────────────────
@@ -82,7 +84,9 @@ class _CleaningRobotPageState extends State<CleaningRobotPage>
   void dispose() {
     _pulseController.dispose();
     _statusTimeoutTimer?.cancel();
+    _statusPollTimer?.cancel();
     _reconnectTimer?.cancel();
+    _mqttSubscription?.cancel();
     _client?.disconnect();
     super.dispose();
   }
@@ -96,7 +100,9 @@ class _CleaningRobotPageState extends State<CleaningRobotPage>
     _client = MqttServerClient.withPort(_broker, clientId, _port);
     _client!.logging(on: false);
     _client!.secure = true;
-    _client!.onBadCertificate = (_) => true;
+    
+    // Typecast fix to ensure compatibility with latest mqtt_client changes
+    _client!.onBadCertificate = (Object _) => true; 
     _client!.keepAlivePeriod = 60;
 
     _client!.onConnected    = _onMqttConnected;
@@ -106,8 +112,9 @@ class _CleaningRobotPageState extends State<CleaningRobotPage>
     final msg = MqttConnectMessage()
         .authenticateAs(_user, _pass)
         .withClientIdentifier(clientId)
-        .startClean()
-        .withWillQos(MqttQos.atLeastOnce);
+        .startClean();
+        // Removed .withWillQos(MqttQos.atLeastOnce) without a will topic, as this makes the CONNECT packet malformed 
+        // and causes the broker to drop the connection without a CONNACK (NoConnectionException).
     _client!.connectionMessage = msg;
 
     try {
@@ -127,10 +134,28 @@ class _CleaningRobotPageState extends State<CleaningRobotPage>
       _mqttConnected  = true;
       _mqttConnecting = false;
     });
+    
+    debugPrint('[Robot MQTT] Subscribed: $_topicStatus');
     _client!.subscribe(_topicStatus, MqttQos.atLeastOnce);
-    _client!.updates!.listen(_onMqttMessage);
-    // Ask robot for current status
-    _publishRaw(_topicStatusReq, 'STATUS');
+    
+    _mqttSubscription?.cancel();
+    _mqttSubscription = _client!.updates!.listen(_onMqttMessage);
+    
+    // Add 500ms delay to ensure subscription is fully processed by broker
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (_mqttConnected) {
+        _publishRaw(_topicStatusReq, 'STATUS');
+      }
+    });
+    
+    // Start polling every 12 seconds so the 30s timeout is never reached when online
+    _statusPollTimer?.cancel();
+    _statusPollTimer = Timer.periodic(const Duration(seconds: 12), (_) {
+      if (_mqttConnected) {
+        _publishRaw(_topicStatusReq, 'STATUS');
+      }
+    });
+    
     _startStatusTimeout();
   }
 
@@ -141,6 +166,7 @@ class _CleaningRobotPageState extends State<CleaningRobotPage>
       _mqttConnected = false;
       _isOnline      = false;
     });
+    _statusPollTimer?.cancel();
     _scheduleReconnect();
   }
 
@@ -156,14 +182,22 @@ class _CleaningRobotPageState extends State<CleaningRobotPage>
     final payload =
         MqttPublishPayload.bytesToStringAsString(rec.payload.message);
     final topic = events[0].topic;
+    final isRetained = rec.header!.retain;
 
-    debugPrint('[Robot MQTT] $topic → $payload');
+    debugPrint('[Robot MQTT] Received:');
+    debugPrint('  Topic: $topic');
+    debugPrint('  Payload: $payload');
+    debugPrint('  Retained: $isRetained');
 
     if (topic == _topicStatus && mounted) {
       setState(() {
         _robotStatus = payload.trim().toUpperCase();
-        _isOnline    = true;
+        
+        // Mark online for ANY message (retained or not)
+        _isOnline = true; 
       });
+      
+      // Reset the 30-second offline timeout whenever any message arrives
       _startStatusTimeout();
     }
   }
@@ -182,6 +216,10 @@ class _CleaningRobotPageState extends State<CleaningRobotPage>
         _client!.connectionStatus?.state != MqttConnectionState.connected) {
       return;
     }
+    debugPrint('[Robot MQTT] Published:');
+    debugPrint('  Topic: $topic');
+    debugPrint('  Payload: $payload');
+    
     final builder = MqttClientPayloadBuilder()..addString(payload);
     _client!.publishMessage(topic, MqttQos.atLeastOnce, builder.payload!);
   }

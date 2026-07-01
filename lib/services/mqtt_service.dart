@@ -40,7 +40,7 @@ class MqttService {
       _client = MqttServerClient.withPort(broker, clientId, port);
       _client!.logging(on: false);
       _client!.secure = true;
-      _client!.onBadCertificate = (dynamic certificate) => true;
+      _client!.onBadCertificate = (Object certificate) => true;
       _client!.keepAlivePeriod = 60;
       _client!.autoReconnect = true; // Library support, but we add custom too
 

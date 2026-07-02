@@ -165,6 +165,7 @@ class _CleaningRobotPageState extends State<CleaningRobotPage>
     setState(() {
       _mqttConnected = false;
       _isOnline      = false;
+      _robotStatus   = 'UNKNOWN'; // Prevent stale state on next reconnect
     });
     _statusPollTimer?.cancel();
     _scheduleReconnect();
@@ -178,27 +179,28 @@ class _CleaningRobotPageState extends State<CleaningRobotPage>
   }
 
   void _onMqttMessage(List<MqttReceivedMessage<MqttMessage>> events) {
-    final rec = events[0].payload as MqttPublishMessage;
-    final payload =
-        MqttPublishPayload.bytesToStringAsString(rec.payload.message);
-    final topic = events[0].topic;
-    final isRetained = rec.header!.retain;
+    for (var event in events) {
+      final rec = event.payload as MqttPublishMessage;
+      final payload =
+          MqttPublishPayload.bytesToStringAsString(rec.payload.message);
+      final topic = event.topic;
+      final isRetained = rec.header!.retain;
 
-    debugPrint('[Robot MQTT] Received:');
-    debugPrint('  Topic: $topic');
-    debugPrint('  Payload: $payload');
-    debugPrint('  Retained: $isRetained');
+      debugPrint('[Robot MQTT] Received:');
+      debugPrint('  Topic: $topic');
+      debugPrint('  Payload: $payload');
+      debugPrint('  Retained: $isRetained');
 
-    if (topic == _topicStatus && mounted) {
-      setState(() {
-        _robotStatus = payload.trim().toUpperCase();
+      if (topic == _topicStatus && mounted) {
+        setState(() {
+          _robotStatus = payload.trim().toUpperCase();
+          // Any message from the robot indicates it is online.
+          _isOnline = true;
+        });
         
-        // Mark online for ANY message (retained or not)
-        _isOnline = true; 
-      });
-      
-      // Reset the 30-second offline timeout whenever any message arrives
-      _startStatusTimeout();
+        // Reset the 30-second offline timeout whenever ANY status message arrives
+        _startStatusTimeout();
+      }
     }
   }
 
@@ -541,7 +543,7 @@ class _CleaningRobotPageState extends State<CleaningRobotPage>
   }
 
   Widget _buildStopButton() {
-    final canStop = _mqttConnected && !_isSending;
+    final canStop = _mqttConnected && !_isSending && _isRunning;
     return GestureDetector(
       onTap: canStop ? _sendStop : null,
       child: AnimatedContainer(
@@ -574,7 +576,7 @@ class _CleaningRobotPageState extends State<CleaningRobotPage>
                 color: canStop ? Colors.white : Colors.white24, size: 28),
             const SizedBox(width: 10),
             Text(
-              'Stop & Return to Dock',
+              'Stop',
               style: TextStyle(
                 color: canStop ? Colors.white : Colors.white24,
                 fontSize: 17,

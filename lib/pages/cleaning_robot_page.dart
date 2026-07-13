@@ -148,9 +148,11 @@ class _CleaningRobotPageState extends State<CleaningRobotPage>
       }
     });
     
-    // Start polling every 12 seconds so the 30s timeout is never reached when online
+    // Poll every 2 seconds — a balance between realtime feel and broker load.
+    // Long-term fix: have the ESP firmware auto-publish to robot/<id>/status
+    // whenever state changes. Then polling can be reduced to ~15s (heartbeat only).
     _statusPollTimer?.cancel();
-    _statusPollTimer = Timer.periodic(const Duration(seconds: 12), (_) {
+    _statusPollTimer = Timer.periodic(const Duration(seconds: 2), (_) {
       if (_mqttConnected) {
         _publishRaw(_topicStatusReq, 'STATUS');
       }
@@ -194,12 +196,18 @@ class _CleaningRobotPageState extends State<CleaningRobotPage>
       if (topic == _topicStatus && mounted) {
         setState(() {
           _robotStatus = payload.trim().toUpperCase();
-          // Any message from the robot indicates it is online.
-          _isOnline = true;
+          // Only mark online for LIVE (non-retained) messages.
+          // Retained messages are stale and may come from a device that is
+          // currently offline — do NOT use them to set online status.
+          if (!isRetained) {
+            _isOnline = true;
+          }
         });
-        
-        // Reset the 30-second offline timeout whenever ANY status message arrives
-        _startStatusTimeout();
+
+        // Reset the offline timeout only for live messages
+        if (!isRetained) {
+          _startStatusTimeout();
+        }
       }
     }
   }

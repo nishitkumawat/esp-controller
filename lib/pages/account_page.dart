@@ -41,9 +41,17 @@ class _AccountPageState extends State<AccountPage> {
     setState(() => _isLoading = true);
     _adminPageRefreshTrigger.value++;
     try {
-      final userId = await _authService.getUserId();
-      final phone = await _authService.getLoggedInPhone();
-      final name = await _authService.getLoggedInName();
+      // ⚡ Run all 3 auth lookups in parallel instead of sequentially
+      final authResults = await Future.wait([
+        _authService.getUserId(),
+        _authService.getLoggedInPhone(),
+        _authService.getLoggedInName(),
+      ]);
+
+      final userId = authResults[0] as int?;
+      final phone = authResults[1] as String?;
+      final name = authResults[2] as String?;
+
       if (userId == null) {
         setState(() {
           _userId = null;
@@ -73,10 +81,28 @@ class _AccountPageState extends State<AccountPage> {
       final memberMap = <int, List<dynamic>>{};
 
       if (isAdmin) {
+        // ⚡ Collect all device IDs that are valid
+        final validAdminDevices = adminDevices
+            .map((d) => (device: d, id: _extractDeviceId(d)))
+            .where((entry) => entry.id != null)
+            .toList();
+
+        // ⚡ Fire pending requests + ALL member fetches simultaneously
+        final futures = <Future>[
+          _apiService.getPendingAccessRequests(adminUserId: userId),
+          ...validAdminDevices.map(
+            (entry) => _apiService.getDeviceMembers(deviceId: entry.id!),
+          ),
+        ];
+
+        final results = await Future.wait(
+          futures,
+          eagerError: false,
+        );
+
+        // Parse pending access requests (index 0)
         try {
-          final requestsResponse =
-              await _apiService.getPendingAccessRequests(adminUserId: userId);
-          final requestsData = requestsResponse['requests'];
+          final requestsData = (results[0] as Map)['requests'];
           if (requestsData is List) {
             pendingRequests = List<dynamic>.from(requestsData);
           }
@@ -90,19 +116,17 @@ class _AccountPageState extends State<AccountPage> {
           );
         }
 
-        for (final device in adminDevices) {
-          final deviceId = _extractDeviceId(device);
-          if (deviceId == null) continue;
+        // Parse each device's members (indices 1..n)
+        for (int i = 0; i < validAdminDevices.length; i++) {
+          final deviceId = validAdminDevices[i].id!;
+          final device = validAdminDevices[i].device;
           try {
-            final membersResponse =
-                await _apiService.getDeviceMembers(deviceId: deviceId);
-            final membersData = membersResponse['members'];
+            final membersData = (results[i + 1] as Map)['members'];
             memberMap[deviceId] =
                 membersData is List ? List<dynamic>.from(membersData) : <dynamic>[];
           } catch (e) {
             Fluttertoast.showToast(
-              msg:
-                  'Failed to load members for ${_extractDeviceName(device)}: ${e.toString()}',
+              msg: 'Failed to load members for ${_extractDeviceName(device)}: ${e.toString()}',
               toastLength: Toast.LENGTH_SHORT,
               gravity: ToastGravity.BOTTOM,
               backgroundColor: Colors.red,
